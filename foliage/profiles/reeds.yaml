@@ -1,0 +1,24 @@
+# Reeds: a stand of tall, stiff, narrow stems for the edge of a lake. The game
+# plants these in the shallows and on the wet bank (`game3d/src/reeds.rs`),
+# scaled up to about head height. Upright with only a slight lean, paler and
+# drier in colour than meadow grass.
+
+n_blades: 13
+n_blades_var: 3
+length_range: [380, 560]
+compliance_gamma_range: [2.6, 3.4]
+base_thickness_range: [3, 5]
+tip_thickness_range: [0.6, 1.0]
+noise_strength: 0.02
+x_spread: 150
+fan_out_strength: 0.08
+spread_range: [5, 9]
+edge_noise: 0.4
+
+mesh:
+  segments: 3
+  droop_deg: 9
+  droop_gamma: 2.6
+  up_normal_blend: 0.6
+  root_color: [0.16, 0.22, 0.07]
+  tip_color: [0.66, 0.66, 0.34]

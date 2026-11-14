@@ -1,0 +1,30 @@
+# Slab: a flat plate of rock split along its bedding, lying on the ground or
+# tilted out of it. Two or three thin beds. See rock_core.RockParams.
+
+subdivisions: 4
+
+displace_amp: 0.18
+displace_freq: 1.2
+displace_octaves: 2
+
+ellipsoid_min: 0.85
+ellipsoid_max: 1.50
+ellipsoid_y_min: 0.26
+ellipsoid_y_max: 0.40
+
+strata: 3
+strata_depth: 0.22
+strata_tilt: 0.05
+
+roughen_amp: 0.0
+
+# Straight broken edges.
+side_cuts: 4
+cut_offset_min: 0.62
+cut_offset_max: 0.90
+
+base_tilt: 0.05
+base_offset_min: 0.10
+base_offset_max: 0.18
+
+seeds: [0, 1, 2]

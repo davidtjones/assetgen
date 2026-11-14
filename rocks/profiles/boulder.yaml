@@ -1,0 +1,33 @@
+# Rounded glacial boulder: smooth, ellipsoidal, only a couple of soft facets.
+# The calm anchor rock. See rock_core.RockParams for every field's meaning.
+
+subdivisions: 4
+
+# The mesh carries only the BIG form. Surface detail (grain, cracks, pitting) is
+# the normal map's job - `rock_surface` supplies it via the triplanar material.
+#
+# The two dials do different things, and it matters:
+#   - `displace_octaves`/`freq` control DETAIL. High values = vertex crinkle, the
+#     jagged look the normal map should be providing instead. Keep them low.
+#   - `displace_amp` controls FORM. Low values give a smooth egg. Keep it healthy.
+displace_amp: 0.20
+displace_freq: 1.0
+displace_octaves: 2
+
+ellipsoid_min: 0.70
+ellipsoid_max: 1.30
+
+# Roughen off: the normal map now breaks up the cut faces, so we don't need to
+# perturb geometry to avoid the gem-facet look. Raise if facets read too flat.
+roughen_amp: 0.0
+roughen_freq: 5.0
+
+# A couple of shallow facets - what says "stone" rather than "egg".
+side_cuts: 2
+cut_offset_min: 0.74
+cut_offset_max: 0.92
+
+base_offset_min: 0.55
+base_offset_max: 0.70
+
+seeds: [0, 1, 2, 3, 4]

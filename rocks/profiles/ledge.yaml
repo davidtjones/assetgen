@@ -1,0 +1,37 @@
+# Ledge: a low block of bedded rock, widest at its base, with squared-off
+# sides. game3d (`src/crags.rs`) sinks rows of these into steep ground, where
+# they join into the stepped ledges of a hard bed outcropping along a hillside.
+# See rock_core.RockParams for the fields.
+
+subdivisions: 4
+# Also bake a coarse copy for distant cliffs (see `lods` in generate_rocks.py).
+lods: [2]
+
+displace_amp: 0.20
+displace_freq: 1.2
+displace_octaves: 3
+
+ellipsoid_min: 0.90
+ellipsoid_max: 1.30
+ellipsoid_y_min: 0.75
+ellipsoid_y_max: 1.05
+
+# A few thick beds with clear steps.
+strata: 4
+strata_depth: 0.26
+strata_tilt: 0.08
+
+roughen_amp: 0.0
+
+# Deep joints square the outline into blocks.
+side_cuts: 6
+cut_offset_min: 0.50
+cut_offset_max: 0.80
+
+# Cut through the middle: widest at the base, so it never overhangs the slope
+# it is sunk into.
+base_tilt: 0.04
+base_offset_min: 0.0
+base_offset_max: 0.06
+
+seeds: [0, 1, 2, 3, 4]

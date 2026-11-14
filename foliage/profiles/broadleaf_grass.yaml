@@ -1,0 +1,27 @@
+# Sparse leaves with visible width via the `spread` parameter (agave / young
+# corn / dieffenbachia-like). Distinct from wispy_grass — those are narrow
+# blades, these are actual leaves. Uses edge_noise for irregular widths.
+
+n_blades: 10
+n_blades_var: 3
+length_range: [300, 500]
+compliance_gamma_range: [1.6, 2.4]
+base_thickness_range: [3, 6]
+tip_thickness_range: [0.8, 1.5]
+noise_strength: 0.04
+x_spread: 170
+fan_out_strength: 0.2
+spread_range: [18, 32]
+edge_noise: 1.5
+
+# 3D-only knobs for the mesh backend (ignored by the raster/billboard path).
+# This is the profile the app actually instances, so the mesh tuning lives here
+# rather than defaulting silently. UV.y on the mesh runs 0 (root) -> 1 (tip) and
+# is the wind weight a future shader multiplies displacement by.
+mesh:
+  segments: 6          # quads up the blade — the vertex-cost knob (3-7 typical)
+  droop_deg: 30        # tip tangent pitch off vertical (self-weight arc)
+  droop_gamma: 2.2     # >1 concentrates the bend near the tip
+  up_normal_blend: 0.7 # 0 = flat geometric normal, 1 = fully ground-up
+  root_color: [0.12, 0.24, 0.06]
+  tip_color: [0.50, 0.72, 0.24]

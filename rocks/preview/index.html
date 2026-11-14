@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rock preview</title>
+  <style>
+    body { margin: 0; background: #1a1c1f; color: #cdd2d8; font: 13px/1.4 system-ui, sans-serif; }
+    #hud { position: fixed; top: 10px; left: 12px; z-index: 10; }
+    #hud b { color: #fff; }
+    #hint { opacity: 0.6; }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="hud">
+    <div><b>Rock preview</b> &mdash; baked glTF from <code>pixi run rocks</code></div>
+    <div id="hint">drag to orbit, scroll to zoom. Gray = plain lit material (Bevy uses triplanar).</div>
+    <div id="status"></div>
+  </div>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1c1f);
+
+    const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 200);
+    camera.position.set(0, 6, 14);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1, 0);
+
+    // Light rig: a warm key + cool fill, matching the app's sun-ish direction so
+    // the facets read the way they will in Bevy.
+    const key = new THREE.DirectionalLight(0xfff0dc, 2.4);
+    key.position.set(6, 10, 4);
+    scene.add(key);
+    scene.add(new THREE.HemisphereLight(0x9fb4c8, 0x2a2620, 0.7));
+
+    // A neutral matte material so shape - not texture - is what you judge here.
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0x8d8a84, roughness: 1.0, metallic: 0.0, flatShading: false });
+
+    const grid = new THREE.GridHelper(40, 40, 0x3a3f45, 0x2a2e33);
+    scene.add(grid);
+
+    const loader = new GLTFLoader();
+    const status = document.getElementById('status');
+
+    const res = await fetch('meshes/manifest.json').catch(() => null);
+    if (!res || !res.ok) {
+      status.textContent = 'No manifest - run `pixi run rocks` first.';
+    } else {
+      const { meshes } = await res.json();
+      const cols = Math.ceil(Math.sqrt(meshes.length));
+      const spacing = 4.0;
+      meshes.forEach((file, i) => {
+        loader.load(`meshes/${file}`, (gltf) => {
+          const root = gltf.scene;
+          root.traverse((o) => { if (o.isMesh) o.material = rockMat; });
+          const col = i % cols, row = Math.floor(i / cols);
+          root.position.set((col - (cols - 1) / 2) * spacing, 0, (row - (cols - 1) / 2) * spacing);
+          scene.add(root);
+        });
+      });
+      status.textContent = `${meshes.length} rocks`;
+    }
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+
+    renderer.setAnimationLoop(() => {
+      controls.update();
+      renderer.render(scene, camera);
+    });
+  </script>
+</body>
+</html>

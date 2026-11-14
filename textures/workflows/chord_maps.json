@@ -1,0 +1,88 @@
+{
+  "1": {
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "texture image"
+    },
+    "inputs": {
+      "image": "{{image}}"
+    }
+  },
+  "2": {
+    "class_type": "ChordLoadModel",
+    "_meta": {
+      "title": "CHORD"
+    },
+    "inputs": {
+      "ckpt_name": "chord_v1.safetensors"
+    }
+  },
+  "3": {
+    "class_type": "ChordMaps",
+    "_meta": {
+      "title": "decompose"
+    },
+    "inputs": {
+      "chord_model": [
+        "2",
+        0
+      ],
+      "image": [
+        "1",
+        0
+      ]
+    }
+  },
+  "10": {
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "albedo"
+    },
+    "inputs": {
+      "images": [
+        "3",
+        0
+      ],
+      "filename_prefix": "{{prefix}}/albedo"
+    }
+  },
+  "11": {
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "normal"
+    },
+    "inputs": {
+      "images": [
+        "3",
+        1
+      ],
+      "filename_prefix": "{{prefix}}/normal"
+    }
+  },
+  "12": {
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "roughness"
+    },
+    "inputs": {
+      "images": [
+        "3",
+        2
+      ],
+      "filename_prefix": "{{prefix}}/roughness"
+    }
+  },
+  "13": {
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "metalness"
+    },
+    "inputs": {
+      "images": [
+        "3",
+        3
+      ],
+      "filename_prefix": "{{prefix}}/metalness"
+    }
+  }
+}

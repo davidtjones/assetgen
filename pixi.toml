@@ -1,0 +1,50 @@
+[workspace]
+authors = ["David Jones <d.t.jones@outlook.com>"]
+channels = ["conda-forge"]
+name = "assetgen"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+comfyui = { cmd = "python main.py --listen 127.0.0.1", cwd = "tools/ComfyUI" }
+silhouettes = "python foliage/scripts/generate_silhouette.py"
+blades = "python foliage/scripts/generate_geometry.py"
+# Undergrowth plants (fern, flower, heather, scrub) -> ../game3d/assets/meshes/plants/
+plants = "python foliage/scripts/generate_plants.py"
+rocks = "python rocks/scripts/generate_rocks.py"
+moon = "python moon/scripts/generate_moon.py"
+# Procedural terrain layers (grass, dirt, rock, scree, sand) -> ../game3d/assets/textures/terrain/
+ground = "python textures/scripts/bake_ground.py"
+# Trees: meshes, atlases, impostors, manifest -> ../game3d/assets/trees/
+trees = "python trees/scripts/generate_trees.py"
+# Tileable PBR material candidates (FLUX.2 klein photo -> CHORD maps) with a lit preview -> textures/out/mat/
+material = "python textures/scripts/gen_material.py"
+# The older StableMaterials generator -> textures/out/sm/
+material-sm = "python textures/scripts/gen_material_sm.py"
+preview-foliage = { cmd = "python -m http.server 8000", cwd = "foliage/preview" }
+# Rock preview: open http://localhost:8001/ (meshes/ is symlinked into preview/).
+preview-rocks = { cmd = "python -m http.server 8001", cwd = "rocks/preview" }
+# Foliage studio: live blade/tuft editor backed by the Python generator.
+# Open http://localhost:8000/preview/studio.html
+studio = "python foliage/scripts/serve.py"
+# Wearable-piece pipeline: concept -> mesh -> clean -> check. `pixi run gear --help`.
+gear = "python gear/scripts/gear.py"
+# The learned-terrain research probe was extracted to its own repo (terrain-gen,
+# a sibling of game3d in the game3d-ws workspace); its terrain-* pixi tasks and the
+# rasterio dependency moved with it.
+
+[dependencies]
+python = "3.12.*"
+pip = "*"
+matplotlib = "*"
+
+[pypi-dependencies]
+torch = { version = ">=2.5", index = "https://download.pytorch.org/whl/cu124" }
+torchvision = { version = "*", index = "https://download.pytorch.org/whl/cu124" }
+torchaudio = { version = "*", index = "https://download.pytorch.org/whl/cu124" }
+
+[activation.env]
+# The env's OpenSSL has the prefix it was installed under baked in. The repo moved from
+# ~/proj/asset-test, so that path is stale and HTTPS from this Python fails with
+# CERTIFICATE_VERIFY_FAILED. Point it at the bundle the env actually ships.
+SSL_CERT_FILE = "$PIXI_PROJECT_ROOT/.pixi/envs/default/ssl/cacert.pem"

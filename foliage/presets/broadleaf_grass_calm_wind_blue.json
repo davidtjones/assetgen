@@ -1,0 +1,91 @@
+{
+  "mode": "field",
+  "profile": "broadleaf_grass",
+  "seed": 0,
+  "blade": {
+    "length": 400,
+    "base_thickness": 4.5,
+    "tip_thickness": 1.15,
+    "compliance_gamma": 2,
+    "spread": 25
+  },
+  "mesh": {
+    "segments": 5,
+    "droop_deg": 27,
+    "droop_gamma": 2,
+    "droop_noise_deg": 4,
+    "up_normal_blend": 0.7,
+    "root_color": [
+      0.1301364766903643,
+      0.2581828529215958,
+      0.07036009569659588
+    ],
+    "tip_color": [
+      0.4620769996544071,
+      0.7011018919329731,
+      0.2195261997292692
+    ],
+    "tuft_azimuth_jitter": 0.35
+  },
+  "cluster": {
+    "n_blades": 10,
+    "n_blades_var": 3,
+    "x_spread": 170,
+    "fan_out_strength": 0.2,
+    "noise_strength": 0.04,
+    "length_range": [
+      300,
+      500
+    ],
+    "base_thickness_range": [
+      3,
+      6
+    ],
+    "tip_thickness_range": [
+      0.8,
+      1.5
+    ],
+    "compliance_gamma_range": [
+      1.6,
+      2.4
+    ],
+    "spread_range": [
+      18,
+      32
+    ]
+  },
+  "field": {
+    "field_size": 10,
+    "field_count": 400,
+    "field_variants": 3
+  },
+  "wind": {
+    "on": true,
+    "strength": 0.18,
+    "base": 0,
+    "gust": 0.7,
+    "scale": 28,
+    "speed": 0.15,
+    "flutter": 0,
+    "flutterFreq": 1,
+    "stiff": 0.3,
+    "bendExp": 4,
+    "indep": 0.3,
+    "dirPerturb": 0,
+    "dir": 45
+  },
+  "light": {
+    "shadows": false,
+    "sunEl": 42,
+    "sunAz": 55,
+    "exposure": 1
+  },
+  "view": {
+    "wire": false,
+    "vcolor": true
+  },
+  "colors": {
+    "root": "#658b4b",
+    "tip": "#b5da81"
+  }
+}

@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Foliage studio</title>
+  <style>
+    :root { --panel: #23261f; --edge: #363b30; --ink: #e9ece3; --accent: #9fd07a; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #16180f; color: var(--ink);
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    #app { display: flex; height: 100%; }
+    #view { flex: 1; position: relative; }
+    #view canvas { display: block; }
+    #err { position: absolute; left: 12px; bottom: 12px; max-width: 60ch; color: #ffb4b4;
+      background: rgba(60,0,0,.6); padding: 6px 10px; border-radius: 5px; display: none; white-space: pre-wrap; }
+    #stats { position: absolute; left: 12px; top: 12px; color: var(--accent);
+      background: rgba(0,0,0,.45); padding: 6px 10px; border-radius: 5px; }
+    #panel { width: 300px; background: var(--panel); border-left: 1px solid var(--edge);
+      overflow-y: auto; padding: 12px 14px; box-sizing: border-box; }
+    h1 { font-size: 12px; margin: 0 0 10px; letter-spacing: .06em; }
+    h2 { font-size: 11px; margin: 16px 0 6px; color: #a7b096; text-transform: uppercase; letter-spacing: .08em;
+      border-bottom: 1px solid var(--edge); padding-bottom: 3px; }
+    .row { display: grid; grid-template-columns: 1fr 42px; gap: 6px; align-items: center; margin: 5px 0; }
+    .row label { color: #c9cfbe; }
+    .row .val { text-align: right; color: var(--accent); }
+    .row input[type=range] { grid-column: 1 / 3; width: 100%; margin: 2px 0 4px; accent-color: var(--accent); }
+    .modes, .toggles { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+    button, select { font: inherit; color: var(--ink); background: #2d3126; border: 1px solid var(--edge);
+      border-radius: 4px; padding: 4px 8px; cursor: pointer; }
+    button.on { background: var(--accent); color: #1a1d12; border-color: var(--accent); font-weight: 700; }
+    select { width: 100%; }
+    button.wide { width: 100%; margin-top: 8px; }
+    #regen { background: #33402a; border-color: #4a5c3a; }
+    #regen:hover { background: #3d4d31; }
+    .colors { display: flex; gap: 12px; margin: 6px 0; }
+    .colors label { display: flex; align-items: center; gap: 6px; }
+    input[type=color] { width: 34px; height: 22px; padding: 0; border: 1px solid var(--edge); background: none; }
+    .toggles label { display: flex; align-items: center; gap: 4px; color: #c9cfbe; cursor: pointer; }
+    #yaml { width: 100%; box-sizing: border-box; height: 120px; margin-top: 6px; resize: vertical;
+      background: #191c12; color: #c9cfbe; border: 1px solid var(--edge); border-radius: 4px; font: inherit; padding: 6px; }
+    #presetName { width: 100%; box-sizing: border-box; margin: 6px 0 0;
+      background: #191c12; color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; font: inherit; padding: 5px 7px; }
+    .hint { color: #7d8570; margin-top: 3px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="view">
+      <div id="stats">…</div>
+      <div id="err"></div>
+    </div>
+    <div id="panel">
+      <h1>🌿 FOLIAGE STUDIO</h1>
+      <div class="modes">
+        <button id="mode-blade" class="on" data-mode="blade">single blade</button>
+        <button id="mode-tuft" data-mode="tuft">tuft</button>
+        <button id="mode-field" data-mode="field">field</button>
+      </div>
+      <select id="profile"></select>
+      <button id="regen" class="wide">⟳ regenerate (reload code + profile)</button>
+
+      <div id="controls"></div>
+
+      <h2>colors</h2>
+      <div class="colors">
+        <label>root <input type="color" id="root_color"></label>
+        <label>tip <input type="color" id="tip_color"></label>
+      </div>
+
+      <h2>view</h2>
+      <div class="toggles">
+        <label><input type="checkbox" id="wire"> wireframe</label>
+        <label><input type="checkbox" id="normals"> normals</label>
+        <label><input type="checkbox" id="vcolor" checked> vtx colors</label>
+        <label><input type="checkbox" id="spin"> spin</label>
+      </div>
+
+      <h2>wind</h2>
+      <div class="toggles"><label title="Animate the layered vertex-shader wind. Pure preview — does not change the baked mesh.">
+        <input type="checkbox" id="wind" checked> animate wind</label>
+        <label title="Debug view: paint each blade by its live gust value (dark = calm, bright = gusting) so you can watch the gust wave roll across the field. Best in field mode, top-down.">
+        <input type="checkbox" id="windDebug"> gust field</label></div>
+      <div class="row" title="Overall wind displacement scale (multiplies every layer). Self-limiting: blades bend/arc over rather than stretch, so cranking it lays grass flatter, never noodles.">
+        <label>strength</label><span class="val" id="windStrengthV"></span>
+        <input type="range" id="windStrength" min="0" max="1" step="0.01" value="0.16"></div>
+      <div class="row" title="Steady downwind push under the gusts — the persistent lean the field keeps even between gusts. 0 = springs fully upright between gusts.">
+        <label>base push</label><span class="val" id="windBaseV"></span>
+        <input type="range" id="windBase" min="0" max="0.6" step="0.01" value="0.05"></div>
+      <div class="row" title="How much the rolling gusts add on top of the base push. This is the layer that makes visible waves sweep across the field. 0 = only the steady lean + flutter.">
+        <label>gust amount</label><span class="val" id="windGustV"></span>
+        <input type="range" id="windGust" min="0" max="1.5" step="0.02" value="0.35"></div>
+      <div class="row" title="Size of each gust patch in metres. Large ≈ the whole field breathes together; small = several distinct gusts rolling across at once.">
+        <label>gust size m</label><span class="val" id="windScaleV"></span>
+        <input type="range" id="windScale" min="4" max="80" step="1" value="14"></div>
+      <div class="row" title="How fast the gust field scrolls downwind — the speed the waves travel across the field. Lower = longer, more sustained gusts.">
+        <label>gust speed</label><span class="val" id="windSpeedV"></span>
+        <input type="range" id="windSpeed" min="0" max="3" step="0.05" value="0.35"></div>
+      <div class="row" title="Continuous tip flutter — the always-on flapping that keeps tips alive instead of freezing in the blown pose. Tip-only, per-blade, on its own steady rate. 0 = dead-still tips.">
+        <label>tip flutter</label><span class="val" id="windFlutterV"></span>
+        <input type="range" id="windFlutter" min="0" max="0.6" step="0.01" value="0.08"></div>
+      <div class="row" title="Flutter flap RATE — how fast the tips flap (independent of amplitude). Low = a slow lazy waft; high = a quick shimmer. Each blade keeps its own phase offset so they never flap in sync.">
+        <label>flutter speed</label><span class="val" id="windFlutterFreqV"></span>
+        <input type="range" id="windFlutterFreq" min="1" max="20" step="0.5" value="9"></div>
+      <div class="row" title="Per-blade stiffness spread — how much blades vary in how hard they resist the wind. 0 = every blade equally stiff; higher = a mix of stiff and floppy blades in a clump.">
+        <label>stiffness var</label><span class="val" id="windStiffV"></span>
+        <input type="range" id="windStiff" min="0" max="1" step="0.02" value="0.3"></div>
+      <div class="row" title="Bend curve — the weight along the blade, pow(height, k). 1 = the whole blade leans like a rigid rod (uniform); 2 = bend concentrates toward the tip (default); higher = base stays planted and only the tip curls (whippier, noisier-looking). LOWER this for a stiffer, more uniform field.">
+        <label>bend curve</label><span class="val" id="windBendExpV"></span>
+        <input type="range" id="windBendExp" min="0.5" max="4" step="0.05" value="2"></div>
+      <div class="row" title="Blade independence — how much blades within a clump desync (each samples the gust at its own spot + has its own lean heading). 0 = the whole clump moves as one (very uniform, water-like); 1 = default; higher = more individual, organic, and noisier. LOWER this to kill the noisy tip movement.">
+        <label>blade indep</label><span class="val" id="windIndepV"></span>
+        <input type="range" id="windIndep" min="0" max="2" step="0.05" value="1"></div>
+      <div class="row" title="How much gusts nudge the wind HEADING (not just its strength), so the whole field subtly changes direction as a gust passes. 0 = wind always blows exactly along 'direction'.">
+        <label>gust heading</label><span class="val" id="windDirPerturbV"></span>
+        <input type="range" id="windDirPerturb" min="0" max="1" step="0.02" value="0.25"></div>
+      <div class="row" title="Compass direction the wind blows toward (degrees) — where gusts travel and grass leans. Grass only ever bends downwind, never upwind.">
+        <label>direction°</label><span class="val" id="windDirV"></span>
+        <input type="range" id="windDir" min="0" max="360" step="5" value="45"></div>
+
+      <h2>lighting</h2>
+      <div class="toggles"><label title="Cast/receive real shadows (sun → grass → ground). Costs some GPU.">
+        <input type="checkbox" id="shadows" checked> shadows</label></div>
+      <div class="row" title="Sun height above the horizon. Low = long raking shadows and rim-lit tips.">
+        <label>sun elev°</label><span class="val" id="sunElV"></span>
+        <input type="range" id="sunEl" min="6" max="90" step="1" value="42"></div>
+      <div class="row" title="Sun compass direction — rotates where shadows fall.">
+        <label>sun azim°</label><span class="val" id="sunAzV"></span>
+        <input type="range" id="sunAz" min="0" max="360" step="5" value="55"></div>
+      <div class="row" title="ACES tone-mapping exposure — overall brightness of the final image.">
+        <label>exposure</label><span class="val" id="expV"></span>
+        <input type="range" id="exposure" min="0.4" max="1.8" step="0.05" value="1"></div>
+
+      <h2>presets</h2>
+      <select id="presetSelect" title="Load a saved studio preset (full session: mode, all sliders, lighting).">
+        <option value="">— load preset —</option>
+      </select>
+      <input type="text" id="presetName" placeholder="preset name" spellcheck="false"
+        title="Name for save / save as… (inline field — no native prompt, so it works in embedded browsers like VS Code's).">
+      <div class="modes">
+        <button id="save" title="Overwrite the loaded preset (or save to the name in the field).">save</button>
+        <button id="saveAs" title="Save the current studio state to the name in the field (blank = a default name).">save as…</button>
+      </div>
+
+      <h2>export</h2>
+      <button id="reset" title="Discard overrides and reload this profile's YAML defaults.">reset to profile</button>
+      <button id="copy" title="Copy a mesh: block (+ changed cluster fields) to paste into the profile YAML, then `pixi run blades` to bake.">copy YAML ▸ mesh: block</button>
+      <textarea id="yaml" readonly spellcheck="false"></textarea>
+      <div class="hint">Presets = full studio state (JSON, reloadable). Copy YAML = bake into the profile.</div>
+    </div>
+  </div>
+
+  <script type="importmap">
+    { "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { VertexNormalsHelper } from 'three/addons/helpers/VertexNormalsHelper.js';
+
+    // --- control schema: key, label, range, group, and which modes show it ---
+    const CONTROLS = [
+      // Blade shape (single-blade mode)
+      { g: 'blade', k: 'length',           label: 'length (px)',   min: 150, max: 900, step: 5,    modes: ['blade'] },
+      { g: 'blade', k: 'base_thickness',   label: 'base width',    min: 1,   max: 18,  step: 0.5,  modes: ['blade'] },
+      { g: 'blade', k: 'tip_thickness',    label: 'tip width',     min: 0.2, max: 5,   step: 0.1,  modes: ['blade'] },
+      { g: 'blade', k: 'compliance_gamma', label: 'compliance γ',  min: 1,   max: 4,   step: 0.05, modes: ['blade'] },
+      { g: 'blade', k: 'spread',           label: 'leaf spread',   min: 0,   max: 40,  step: 1,    modes: ['blade'] },
+      // Mesh (blade, tuft, field)
+      { g: 'mesh',  k: 'segments',         label: 'segments',      min: 3,   max: 10,  step: 1,    modes: ['blade','tuft','field'] },
+      { g: 'mesh',  k: 'droop_deg',        label: 'droop (deg)',   min: 0,   max: 60,  step: 1,    modes: ['blade','tuft','field'] },
+      { g: 'mesh',  k: 'droop_gamma',      label: 'droop γ',       min: 1,   max: 4,   step: 0.05, modes: ['blade','tuft','field'] },
+      { g: 'mesh',  k: 'droop_noise_deg',  label: 'droop noise',   min: 0,   max: 15,  step: 0.5,  modes: ['blade','tuft','field'] },
+      { g: 'mesh',  k: 'up_normal_blend',  label: 'up-normal',     min: 0,   max: 1,   step: 0.02, modes: ['blade','tuft','field'] },
+      // Tuft population — single-value knobs (tuft + field)
+      { g: 'cluster', k: 'n_blades',        label: 'blades',        min: 4,  max: 60,  step: 1,    modes: ['tuft','field'] },
+      { g: 'cluster', k: 'n_blades_var',    label: 'blades ±',      min: 0,  max: 15,  step: 1,    modes: ['tuft','field'] },
+      { g: 'cluster', k: 'x_spread',        label: 'base radius px',min: 20, max: 320, step: 5,    modes: ['tuft','field'] },
+      { g: 'cluster', k: 'fan_out_strength',label: 'splay',         min: 0,  max: 1.5, step: 0.02, modes: ['tuft','field'] },
+      { g: 'cluster', k: 'noise_strength',  label: 'curl noise',    min: 0,  max: 0.2, step: 0.005,modes: ['tuft','field'] },
+      { g: 'mesh',    k: 'tuft_azimuth_jitter', label: 'azim jitter', min: 0, max: 1,  step: 0.02, modes: ['tuft','field'] },
+      // Tuft population — per-blade RANDOMNESS ranges (dual-handle: value sampled between lo..hi)
+      { g: 'cluster', k: 'length_range',           label: 'length',       min: 100, max: 900, step: 5,    range: true, modes: ['tuft','field'] },
+      { g: 'cluster', k: 'base_thickness_range',   label: 'base width',   min: 1,   max: 20,  step: 0.5,  range: true, modes: ['tuft','field'] },
+      { g: 'cluster', k: 'tip_thickness_range',    label: 'tip width',    min: 0.2, max: 6,   step: 0.1,  range: true, modes: ['tuft','field'] },
+      { g: 'cluster', k: 'compliance_gamma_range', label: 'compliance γ', min: 1,   max: 4,   step: 0.05, range: true, modes: ['tuft','field'] },
+      { g: 'cluster', k: 'spread_range',           label: 'leaf spread',  min: 0,   max: 40,  step: 1,    range: true, modes: ['tuft','field'] },
+      // Field scatter (field mode only). These re-scatter instantly without regenerating tufts.
+      { g: 'field', k: 'field_size',     label: 'field size (m)', min: 3,  max: 24,   step: 1,   modes: ['field'] },
+      { g: 'field', k: 'field_count',    label: 'tuft count',     min: 20, max: 2500, step: 20,  modes: ['field'] },
+      { g: 'field', k: 'field_variants', label: 'variants',       min: 1,  max: 4,    step: 1,   modes: ['field'] },
+    ];
+
+    // Hover documentation for each control (shown as a native title tooltip).
+    const DESC = {
+      seed: 'Random seed for this tuft. Change it to roll a different arrangement of the same recipe.',
+      length: 'Blade length in pixels (canvas 768×1024); scales to world units on bake.',
+      base_thickness: 'Blade width at the root, in pixels.',
+      tip_thickness: 'Blade width at the tip, in pixels. Small = sharp point.',
+      compliance_gamma: 'Bend stiffness profile. Higher = the base stays rigid longer and the tip bends more sharply.',
+      spread: 'Bell-shaped extra width in the middle of the blade → broader, leaf-like shapes. 0 = simple taper.',
+      segments: 'Quads up the blade — the vertex-cost knob. More = smoother curve, more triangles.',
+      droop_deg: 'How far the tip pitches off vertical from self-weight (the natural arc). 0 = stiff/upright.',
+      droop_gamma: 'How the droop concentrates: higher = arc lives near the tip, base stays upright.',
+      droop_noise_deg: 'Per-blade random variation in droop, so blades in a tuft do not all arc identically.',
+      up_normal_blend: 'Blends the lighting normal toward straight-up. 0 = true flat-blade shading, 1 = lights like one soft surface (the stylised-grass look).',
+      n_blades: 'Mean number of blades in the tuft.',
+      n_blades_var: 'Random ± variation in blade count per tuft.',
+      x_spread: 'Radius of the disk the blade bases are scattered in (pixels). Wider = looser tuft.',
+      fan_out_strength: 'How much outer blades splay outward (extra droop away from centre). 0 = all upright, high = fountain.',
+      noise_strength: 'Per-segment angle jitter → curlier, less straight blades.',
+      tuft_azimuth_jitter: 'Randomness in each blade’s outward lean direction (radians). 0 = strictly radial arcs.',
+      length_range: 'Blade length is sampled anywhere in [lo, hi]. Widen for mixed tall/short blades.',
+      base_thickness_range: 'Root width sampled per blade in [lo, hi].',
+      tip_thickness_range: 'Tip width sampled per blade in [lo, hi].',
+      compliance_gamma_range: 'Stiffness profile sampled per blade in [lo, hi].',
+      spread_range: 'Leaf-spread sampled per blade in [lo, hi]. >0 mixes in broader leaves.',
+      field_size: 'Ground extent of the previewed field, in metres. Re-scatters instantly (no regenerate).',
+      field_count: 'Number of tufts scattered across the field. Re-scatters instantly.',
+      field_variants: 'How many distinct tuft seeds to instance. More = less visible repetition.',
+    };
+
+    const state = { mode: 'blade', profile: null, seed: 0,
+                    blade: {}, mesh: {}, cluster: {}, defaults: null,
+                    field: { field_size: 10, field_count: 400, field_variants: 3 } };
+
+    // --- three.js scene ---
+    const view = document.getElementById('view');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x16180f);
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 50);
+    camera.position.set(0.8, 0.5, 1.0);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(devicePixelRatio);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;   // filmic response = more "game frame", less flat
+    renderer.toneMappingExposure = 1.0;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    view.appendChild(renderer.domElement);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0.3, 0);
+    controls.enableDamping = true;
+
+    // Sky/ground hemisphere fill + a shadow-casting sun as the key light.
+    const hemi = new THREE.HemisphereLight(0xbcd3ff, 0x3b3524, 0.55); scene.add(hemi);
+    const sun = new THREE.DirectionalLight(0xfff0d8, 3.0);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.bias = -0.0004;
+    sun.shadow.normalBias = 0.02;
+    scene.add(sun); scene.add(sun.target);
+
+    const sunState = { azimuth: 0.96, elevation: 0.73, distance: 12 };
+    function updateSun() {
+      const { azimuth: a, elevation: e, distance: d } = sunState;
+      sun.position.set(d * Math.cos(e) * Math.sin(a), d * Math.sin(e), d * Math.cos(e) * Math.cos(a));
+      sun.target.position.set(0, 0, 0); sun.target.updateMatrixWorld();
+    }
+    function updateShadowCam(radius) {
+      const c = sun.shadow.camera;
+      c.left = -radius; c.right = radius; c.top = radius; c.bottom = -radius;
+      c.near = 0.1; c.far = sunState.distance * 2.5 + radius; c.updateProjectionMatrix();
+    }
+    updateSun(); updateShadowCam(2);
+
+    const ground = new THREE.Mesh(new THREE.CircleGeometry(0.6, 48),
+      new THREE.MeshStandardMaterial({ color: 0x2a3226, roughness: 1 }));
+    ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+    const grid = new THREE.GridHelper(1.2, 12, 0x3a4a38, 0x2a352a); grid.position.y = 0.001; scene.add(grid);
+
+    // Field mode: a big ground plane + a group holding instanced tufts. Hidden
+    // until field mode is active.
+    const fieldGround = new THREE.Mesh(new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshStandardMaterial({ color: 0x33402a, roughness: 1 }));
+    fieldGround.rotation.x = -Math.PI / 2; fieldGround.visible = false; fieldGround.receiveShadow = true;
+    scene.add(fieldGround);
+    const fieldGroup = new THREE.Group(); scene.add(fieldGroup);
+
+    let current = null, normalHelper = null;
+    let fieldVariants = [];   // [{ geo, mat }] extracted from generated tuft glTFs
+    const loader = new GLTFLoader();
+
+    // --- gust noise: a seamless tiling fBm texture, generated once at boot so
+    // there's no external asset to load. The wind shader samples it by world
+    // position (scrolled over time) to get coherent gusts that roll across the
+    // field. Tileable because each octave's lattice wraps at a period that divides
+    // the texture size, so RepeatWrapping shows no seam. ---
+    function makeNoiseTexture(size = 256) {
+      const data = new Uint8Array(size * size);
+      // value-noise octave with a wrapping lattice (period divides `size`).
+      const smooth = t => t * t * (3 - 2 * t);
+      const octave = (period, amp) => {
+        const lat = new Float32Array(period * period);
+        for (let i = 0; i < lat.length; i++) lat[i] = Math.random();
+        const cell = size / period;
+        const out = new Float32Array(size * size);
+        for (let y = 0; y < size; y++) {
+          for (let x = 0; x < size; x++) {
+            const fx = x / cell, fy = y / cell;
+            const ix = Math.floor(fx), iy = Math.floor(fy);
+            const tx = smooth(fx - ix), ty = smooth(fy - iy);
+            const x0 = ix % period, x1 = (ix + 1) % period;
+            const y0 = iy % period, y1 = (iy + 1) % period;
+            const a = lat[y0 * period + x0], b = lat[y0 * period + x1];
+            const c = lat[y1 * period + x0], d = lat[y1 * period + x1];
+            const top = a + (b - a) * tx, bot = c + (d - c) * tx;
+            out[y * size + x] = (top + (bot - top) * ty) * amp;
+          }
+        }
+        return out;
+      };
+      const acc = new Float32Array(size * size);
+      let norm = 0;
+      for (const [period, amp] of [[4, 0.5], [8, 0.28], [16, 0.14], [32, 0.08]]) {
+        const o = octave(period, amp);
+        for (let i = 0; i < acc.length; i++) acc[i] += o[i];
+        norm += amp;
+      }
+      for (let i = 0; i < data.length; i++) data[i] = Math.max(0, Math.min(255, Math.round((acc[i] / norm) * 255)));
+      const tex = new THREE.DataTexture(data, size, size, THREE.RedFormat, THREE.UnsignedByteType);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.generateMipmaps = true;
+      tex.needsUpdate = true;
+      return tex;
+    }
+    const noiseTex = makeNoiseTexture();
+
+    // --- wind: layered, stateless vertex-shader motion, summed from three scales.
+    // Everything scales by the baked root->tip weight (uv.y) so roots stay planted.
+    // Injected into MeshStandardMaterial via onBeforeCompile so we keep real
+    // lighting + vertex colors. Applied in model space (after instanceMatrix,
+    // before modelView) so wind direction is world-consistent regardless of each
+    // instance's random yaw. Pure function of world position + time — no state,
+    // so it scales to thousands of instances and ports cleanly to Bevy WGSL. ---
+    const wind = {
+      uTime: { value: 0 },
+      uWindDir: { value: new THREE.Vector2(Math.SQRT1_2, Math.SQRT1_2) },  // xz, unit
+      uStrength: { value: 0.16 },     // overall displacement scale (0 = still)
+      uBaseWind: { value: 0.05 },     // steady downwind push between gusts
+      uGustAmp: { value: 0.35 },      // how much the rolling gusts add on top
+      uGustScale: { value: 1 / 14 },  // 1 / gust-size(m) — world->noise-uv scale
+      uGustSpeed: { value: 0.35 },    // how fast the gust field scrolls downwind
+      uFlutter: { value: 0.08 },      // continuous desynced tip flutter amount
+      uFlutterFreq: { value: 9.0 },   // tip flutter flap rate (per-blade phase on top)
+      uBladeHeight: { value: 0.7 },   // approx blade height, for length-preserving bend
+      uStiffVar: { value: 0.3 },      // per-blade stiffness spread (some resist more)
+      uDirPerturb: { value: 0.25 },   // gusts nudge the heading, not just strength
+      uBendExp: { value: 2.0 },       // bend weight curve: pow(uv.y, k). 1=rigid-rod lean, higher=tip-only
+      uBladeIndep: { value: 1.0 },    // scales per-blade desync (gust offset + dir spread). 0=clump moves as one
+      uNoiseTex: { value: noiseTex },
+      uDebugGust: { value: 0 },       // 1 = paint blades by their gust value (debug view)
+    };
+    const WIND_HELPERS = `
+      // Two-octave sample of the tiling gust field at a world-derived uv.
+      float wGust( vec2 uv ){
+        float a = texture2D( uNoiseTex, uv ).r;
+        float b = texture2D( uNoiseTex, uv * 2.3 + 0.37 ).r;
+        return a * 0.65 + b * 0.35;
+      }
+    `;
+    const WIND_PROJECT = `
+      vec4 mvPosition = vec4( transformed, 1.0 );
+      #ifdef USE_INSTANCING
+        mvPosition = instanceMatrix * mvPosition;
+        vec3  windWPos = ( instanceMatrix * vec4( 0.0, 0.0, 0.0, 1.0 ) ).xyz;
+        float iscale   = length( instanceMatrix[ 0 ].xyz );   // per-instance uniform scale
+      #else
+        vec3  windWPos = vec3( 0.0 );
+        float iscale   = 1.0;
+      #endif
+      {
+        float h  = uv.y;                       // 0 at root, 1 at tip (baked weight)
+        float hw = pow( h, uBendExp );         // bend weight curve (1=rigid rod, higher=tip-only)
+        vec2  wd = normalize( uWindDir + vec2( 1e-5 ) );
+
+        // Per-blade randoms (constant across a blade) — desync + variation.
+        float ph  = uv1.x * 6.2831;            // flutter/phase seed
+        float rnd = uv1.y;                     // amplitude / stiffness / direction seed
+
+        // --- Layer 1: GUSTS. Sample the tiling noise by WORLD position (so
+        // neighbours feel the same gust -> coherent waves) scrolled downwind (so
+        // the wave rolls across the field). A tiny per-blade sample offset lets a
+        // gust roll THROUGH a tuft blade-by-blade instead of snapping it as one.
+        vec2  guv  = windWPos.xz * uGustScale - wd * ( uTime * uGustSpeed )
+                     + ( uv1.xy - 0.5 ) * ( 0.15 * uBladeIndep );
+        float gust = wGust( guv );             // ~0..1
+        // Value-noise fBm concentrates near 0.5, so its raw swing is weak and the
+        // field reads as a uniform lean rather than travelling gust fronts.
+        // Contrast-stretch about the mean so calm spots relax and gusts hit hard.
+        gust = clamp( ( gust - 0.5 ) * 2.4 + 0.5, 0.0, 1.0 );
+        vGust = gust;                          // carry to the fragment for the debug view
+
+        // --- extra: gusts perturb the heading (+ a little per-blade spread), so
+        // the field subtly changes direction as gusts pass, not only strength.
+        float dAng = ( gust - 0.5 ) * uDirPerturb + ( rnd - 0.5 ) * ( 0.4 * uBladeIndep );
+        vec2  dir  = vec2( wd.x * cos( dAng ) - wd.y * sin( dAng ),
+                           wd.x * sin( dAng ) + wd.y * cos( dAng ) );
+
+        // --- Layer 2: steady push + gust strength; --- extra: per-blade stiffness.
+        float power = ( uBaseWind + gust * uGustAmp ) * ( 1.0 - uStiffVar * rnd );
+
+        // --- Layer 3: TIP FLUTTER. High-freq, tip-only, desynced per blade, on the
+        // axis PERPENDICULAR to the wind (organic sideways wobble). Livelier in gusts.
+        vec2  perp    = vec2( -dir.y, dir.x );
+        float flutter = sin( uTime * uFlutterFreq + ph ) * pow( h, 3.0 ) * uFlutter * ( 0.4 + 0.9 * gust );
+
+        vec2 offset = ( dir * power * hw + perp * flutter ) * uStrength;
+
+        // Length preservation: swing each vertex on a circle of radius 'arm' around
+        // its root — clamp the horizontal offset to the arm and pay for it with the
+        // exact arc drop, so the blade BENDS (arcs over) instead of stretching, and
+        // self-limits near ~90deg however high strength goes.
+        float arm = h * uBladeHeight * iscale + 1e-4;
+        float d0  = length( offset );
+        float d   = min( d0, arm * 0.98 );
+        mvPosition.xz += d0 > 1e-5 ? offset * ( d / d0 ) : vec2( 0.0 );
+        mvPosition.y  -= arm - sqrt( max( arm * arm - d * d, 0.0 ) );
+      }
+      mvPosition = modelViewMatrix * mvPosition;
+      gl_Position = projectionMatrix * mvPosition;
+    `;
+    function applyWind(mat) {
+      // USE_UV / USE_UV1 make three declare the `uv` and `uv1` attributes even with
+      // no texture bound. uv.y = root->tip weight; uv1.xy = per-blade wind randoms.
+      mat.defines = { ...(mat.defines || {}), USE_UV: '', USE_UV1: '' };
+      mat.onBeforeCompile = (shader) => {
+        for (const k of Object.keys(wind)) shader.uniforms[k] = wind[k];
+        shader.vertexShader =
+          'uniform float uTime; uniform vec2 uWindDir; uniform float uStrength; uniform float uBaseWind; uniform float uGustAmp; uniform float uGustScale; uniform float uGustSpeed; uniform float uFlutter; uniform float uFlutterFreq; uniform float uBladeHeight; uniform float uStiffVar; uniform float uDirPerturb; uniform float uBendExp; uniform float uBladeIndep; uniform sampler2D uNoiseTex;\n'
+          + 'varying float vGust;\n'
+          + WIND_HELPERS + '\n'
+          + shader.vertexShader.replace('#include <project_vertex>', WIND_PROJECT);
+        // Debug gust view: paint each blade by its live gust value (dark = calm,
+        // bright = gusting) so the travelling wave is visible directly. Overrides
+        // the final color after all lighting/tonemapping/colorspace chunks.
+        shader.fragmentShader =
+          'uniform float uDebugGust;\nvarying float vGust;\n'
+          + shader.fragmentShader.replace('#include <dithering_fragment>',
+              '#include <dithering_fragment>\n'
+            + 'if ( uDebugGust > 0.5 ) {\n'
+            + '  float gg = clamp( vGust, 0.0, 1.0 );\n'
+            + '  vec3 cCalm = vec3( 0.10, 0.35, 0.90 );\n'   // visible blue = calm
+            + '  vec3 cMid  = vec3( 0.90, 0.90, 0.90 );\n'   // near-white = neutral (0.5)
+            + '  vec3 cGust = vec3( 0.95, 0.70, 0.12 );\n'   // amber = gusting
+            + '  vec3 col = gg < 0.5 ? mix( cCalm, cMid, gg * 2.0 ) : mix( cMid, cGust, ( gg - 0.5 ) * 2.0 );\n'
+            + '  gl_FragColor = vec4( col, 1.0 );\n'
+            + '}\n');
+      };
+      mat.customProgramCacheKey = () => 'grasswind';
+      mat.needsUpdate = true;
+      return mat;
+    }
+
+    function fit() {
+      const w = view.clientWidth, h = view.clientHeight;
+      camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h);
+    }
+    addEventListener('resize', fit);
+
+    // --- color helpers (sRGB picker <-> linear COLOR_0) ---
+    const s2l = c => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+    const l2s = c => (c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055);
+    const hexToLinear = hex => {
+      const n = parseInt(hex.slice(1), 16);
+      return [s2l(((n >> 16) & 255) / 255), s2l(((n >> 8) & 255) / 255), s2l((n & 255) / 255)];
+    };
+    const linearToHex = ([r, g, b]) => '#' + [r, g, b]
+      .map(c => Math.round(Math.min(1, Math.max(0, l2s(c))) * 255).toString(16).padStart(2, '0')).join('');
+
+    // --- build the slider DOM for the current mode ---
+    function buildControls() {
+      const host = document.getElementById('controls');
+      host.innerHTML = '';
+      const HEADS = { field: 'field', blade: 'blade shape', mesh: 'mesh', cluster: 'tuft' };
+      const order = { blade: ['blade', 'mesh'], tuft: ['mesh', 'cluster'],
+                      field: ['field', 'mesh', 'cluster'] }[state.mode];
+      for (const grp of order) {
+        const h = document.createElement('h2'); h.textContent = HEADS[grp]; host.appendChild(h);
+        // Seed picks a specific tuft; in field mode the variants use seeds 0..N-1.
+        if (grp === 'cluster' && state.mode === 'tuft') {
+          host.appendChild(makeSlider({ g: '_seed', k: 'seed', label: 'seed', min: 0, max: 30, step: 1 }, state.seed));
+        }
+        for (const c of CONTROLS.filter(c => c.g === grp && c.modes.includes(state.mode))) {
+          host.appendChild(c.range ? makeRange(c, state[c.g][c.k]) : makeSlider(c, state[c.g][c.k]));
+        }
+      }
+    }
+
+    // Route a control change: field-only knobs just re-scatter (no server call);
+    // anything affecting tuft shape regenerates the tuft(s).
+    function changed(c) {
+      if (state.mode === 'field' && c.g === 'field') scheduleScatter();
+      else scheduleGenerate();
+    }
+
+    const fmt = (v, step) => (+v).toFixed(step < 1 ? 2 : 0);
+
+    function makeSlider(c, value) {
+      const row = document.createElement('div'); row.className = 'row';
+      row.title = DESC[c.k] || '';
+      const lab = document.createElement('label'); lab.textContent = c.label;
+      const val = document.createElement('span'); val.className = 'val';
+      const inp = document.createElement('input');
+      inp.type = 'range'; inp.min = c.min; inp.max = c.max; inp.step = c.step;
+      inp.value = value ?? c.min;
+      const show = () => val.textContent = fmt(inp.value, c.step);
+      show();
+      inp.addEventListener('input', () => {
+        show();
+        const v = +inp.value;
+        if (c.g === '_seed') state.seed = v; else state[c.g][c.k] = v;
+        changed(c);
+      });
+      row.append(lab, val, inp);
+      return row;
+    }
+
+    // Dual-handle "randomness" control: the sampled value lands anywhere in [lo, hi].
+    // Two stacked sliders; lo can't exceed hi. state holds [lo, hi].
+    function makeRange(c, value) {
+      const [lo0, hi0] = value ?? [c.min, c.max];
+      const row = document.createElement('div'); row.className = 'row range2';
+      row.title = DESC[c.k] || '';
+      const lab = document.createElement('label'); lab.textContent = c.label;
+      const val = document.createElement('span'); val.className = 'val';
+      const loI = document.createElement('input'); const hiI = document.createElement('input');
+      for (const [inp, v] of [[loI, lo0], [hiI, hi0]]) {
+        inp.type = 'range'; inp.min = c.min; inp.max = c.max; inp.step = c.step; inp.value = v;
+      }
+      const show = () => val.textContent = `${fmt(loI.value, c.step)}–${fmt(hiI.value, c.step)}`;
+      show();
+      const push = () => {
+        let lo = +loI.value, hi = +hiI.value;
+        if (lo > hi) { if (document.activeElement === loI) hi = lo, hiI.value = hi; else lo = hi, loI.value = lo; }
+        state[c.g][c.k] = [lo, hi];
+        show(); changed(c);
+      };
+      loI.addEventListener('input', push); hiI.addEventListener('input', push);
+      row.append(lab, val, loI, hiI);
+      return row;
+    }
+
+    // --- server calls ---
+    async function loadProfileDefaults(name) {
+      const d = await (await fetch(`/params?profile=${name}`)).json();
+      state.defaults = d;
+      state.blade = { ...d.blade };
+      state.mesh = { ...d.mesh };
+      state.cluster = { ...d.cluster };
+      document.getElementById('root_color').value = linearToHex(d.mesh.root_color);
+      document.getElementById('tip_color').value = linearToHex(d.mesh.tip_color);
+    }
+
+    let genTimer = null, scatterTimer = null, inFlight = false, dirty = false;
+    function scheduleGenerate() { clearTimeout(genTimer); genTimer = setTimeout(generate, 110); }
+    function scheduleScatter() { clearTimeout(scatterTimer); scatterTimer = setTimeout(scatterField, 60); }
+    const showErr = m => { const el = document.getElementById('err'); el.textContent = m; el.style.display = m ? 'block' : 'none'; };
+
+    async function generate() {
+      if (state.mode === 'field') return regenField();
+      if (inFlight) { dirty = true; return; }
+      inFlight = true; dirty = false;
+      const body = {
+        mode: state.mode, profile: state.profile, seed: state.seed,
+        blade: state.blade, mesh: state.mesh, cluster: state.cluster,
+      };
+      try {
+        const res = await fetch('/generate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+        const txt = await res.text();
+        if (!res.ok) throw new Error(txt);
+        await swapMesh(txt);
+        showErr('');
+      } catch (e) {
+        showErr('generate failed:\n' + e.message);
+      } finally {
+        inFlight = false;
+        if (dirty) generate();
+      }
+    }
+
+    function parseGltf(text) {
+      return new Promise((resolve, reject) => loader.parse(text, '', resolve, reject));
+    }
+
+    // Field mode: generate a few tuft variants (seeds 0..N-1) with the current
+    // tuft params, then scatter many instances of them across the ground.
+    async function regenField() {
+      if (inFlight) { dirty = true; return; }
+      inFlight = true; dirty = false;
+      const v = Math.round(state.field.field_variants);
+      try {
+        const reqs = [];
+        for (let i = 0; i < v; i++) {
+          reqs.push(fetch('/generate', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'tuft', profile: state.profile, seed: i,
+              blade: state.blade, mesh: state.mesh, cluster: state.cluster }),
+          }).then(async r => { const t = await r.text(); if (!r.ok) throw new Error(t); return t; }));
+        }
+        const texts = await Promise.all(reqs);
+        // Remove old instanced meshes before disposing the geometry they reference.
+        while (fieldGroup.children.length) {
+          const m = fieldGroup.children.pop(); m.dispose?.(); fieldGroup.remove(m);
+        }
+        for (const fv of fieldVariants) fv.geo.dispose();
+        fieldVariants = [];
+        for (const t of texts) {
+          const gltf = await parseGltf(t);
+          let geo = null, mat = null;
+          gltf.scene.traverse(o => { if (o.isMesh) { geo = o.geometry; mat = o.material; } });
+          if (geo) fieldVariants.push({ geo, mat });
+        }
+        scatterField();
+        showErr('');
+      } catch (e) {
+        showErr('field generate failed:\n' + e.message);
+      } finally {
+        inFlight = false;
+        if (dirty) generate();
+      }
+    }
+
+    const _dummy = new THREE.Object3D();
+    function scatterField() {
+      // Rebuild instanced meshes only (cheap); reuses the current tuft variants.
+      while (fieldGroup.children.length) {
+        const m = fieldGroup.children.pop(); m.dispose?.(); fieldGroup.remove(m);
+      }
+      const v = fieldVariants.length; if (!v) return;
+      const size = state.field.field_size;
+      const count = Math.round(state.field.field_count);
+      fieldGround.scale.set(size * 1.1, size * 1.1, 1);
+      updateShadowCam(size * 0.62);
+      const vcolor = document.getElementById('vcolor').checked;
+      const wire = document.getElementById('wire').checked;
+
+      const cols = Math.ceil(Math.sqrt(count));
+      const cell = size / cols;
+      const meshes = fieldVariants.map(fv => {
+        const m = new THREE.InstancedMesh(fv.geo, applyWind(fv.mat.clone()), Math.ceil(count / v) + 1);
+        m.material.wireframe = wire; m.material.vertexColors = vcolor;
+        m.castShadow = true; m.receiveShadow = true;
+        m.frustumCulled = false; return m;
+      });
+      const counters = new Array(v).fill(0);
+      let tris = 0;
+      for (let i = 0; i < count; i++) {
+        const gx = i % cols, gz = Math.floor(i / cols);
+        const x = (gx + 0.5) * cell - size / 2 + (Math.random() - 0.5) * cell * 0.9;
+        const z = (gz + 0.5) * cell - size / 2 + (Math.random() - 0.5) * cell * 0.9;
+        const s = 0.8 + Math.random() * 0.5;
+        _dummy.position.set(x, 0, z);
+        _dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+        _dummy.scale.set(s, s, s);
+        _dummy.updateMatrix();
+        const vi = i % v;
+        meshes[vi].setMatrixAt(counters[vi]++, _dummy.matrix);
+      }
+      meshes.forEach((m, vi) => {
+        m.count = counters[vi]; m.instanceMatrix.needsUpdate = true;
+        tris += (m.geometry.index.count / 3) * counters[vi];
+        fieldGroup.add(m);
+      });
+      document.getElementById('stats').textContent =
+        `field · ${count} tufts · ${v} variant${v > 1 ? 's' : ''} · ${(tris / 1000).toFixed(0)}k tris`;
+    }
+
+    function swapMesh(gltfText) {
+      return new Promise((resolve, reject) => {
+        loader.parse(gltfText, '', (gltf) => {
+          if (current) { scene.remove(current); current.traverse(o => o.geometry?.dispose()); }
+          if (normalHelper) { scene.remove(normalHelper); normalHelper = null; }
+          current = gltf.scene; scene.add(current);
+          updateShadowCam(1.2);
+          let verts = 0, tris = 0, height = 0;
+          current.traverse(o => {
+            if (o.isMesh) {
+              o.castShadow = true; o.receiveShadow = true; applyWind(o.material);
+              const g = o.geometry; verts += g.attributes.position.count;
+              tris += (g.index ? g.index.count : g.attributes.position.count) / 3;
+              g.computeBoundingBox(); height = Math.max(height, g.boundingBox.max.y);
+            }
+          });
+          applyView();
+          document.getElementById('stats').textContent =
+            `${state.mode} · ${verts} verts · ${tris} tris · ${height.toFixed(3)} u`;
+          resolve();
+        }, reject);
+      });
+    }
+
+    function applyView() {
+      const wire = document.getElementById('wire').checked;
+      const vcolor = document.getElementById('vcolor').checked;
+      const setMat = o => { if (o.isMesh) { o.material.wireframe = wire; o.material.vertexColors = vcolor; o.material.needsUpdate = true; } };
+      if (state.mode === 'field') { fieldGroup.traverse(setMat); return; }
+      if (!current) return;
+      current.traverse(setMat);
+      if (normalHelper) { scene.remove(normalHelper); normalHelper = null; }
+      if (document.getElementById('normals').checked) {
+        current.traverse(o => { if (o.isMesh && !normalHelper) {
+          normalHelper = new VertexNormalsHelper(o, 0.05, 0x66ccff); scene.add(normalHelper);
+        } });
+      }
+    }
+
+    // --- YAML export of the current mesh: block ---
+    function buildYaml() {
+      const m = state.mesh, d = state.defaults;
+      const rc = hexToLinear(document.getElementById('root_color').value);
+      const tc = hexToLinear(document.getElementById('tip_color').value);
+      const r = n => Math.round(n * 1000) / 1000;
+      const lines = ['mesh:'];
+      lines.push(`  segments: ${Math.round(m.segments)}`);
+      lines.push(`  droop_deg: ${r(m.droop_deg)}`);
+      lines.push(`  droop_gamma: ${r(m.droop_gamma)}`);
+      lines.push(`  droop_noise_deg: ${r(m.droop_noise_deg)}`);
+      lines.push(`  up_normal_blend: ${r(m.up_normal_blend)}`);
+      lines.push(`  tuft_azimuth_jitter: ${r(m.tuft_azimuth_jitter)}`);
+      lines.push(`  root_color: [${rc.map(r).join(', ')}]`);
+      lines.push(`  tip_color: [${tc.map(r).join(', ')}]`);
+      // Cluster fields live at the top level of the profile, not under mesh:.
+      // Emit only those changed from the profile defaults. Ranges emit as [lo, hi].
+      const cl = state.cluster, dc = d.cluster;
+      const SCALARS = ['n_blades', 'n_blades_var', 'x_spread', 'fan_out_strength', 'noise_strength'];
+      const RANGES = ['length_range', 'base_thickness_range', 'tip_thickness_range',
+                      'compliance_gamma_range', 'spread_range'];
+      const clLines = [];
+      for (const k of SCALARS) {
+        if (cl[k] === undefined) continue;
+        const isInt = k === 'n_blades' || k === 'n_blades_var';
+        const cur = isInt ? Math.round(cl[k]) : r(cl[k]);
+        if (cur !== (isInt ? dc[k] : r(dc[k]))) clLines.push(`${k}: ${cur}`);
+      }
+      for (const k of RANGES) {
+        if (!cl[k]) continue;
+        const cur = cl[k].map(r), def = dc[k].map(r);
+        if (cur[0] !== def[0] || cur[1] !== def[1]) clLines.push(`${k}: [${cur.join(', ')}]`);
+      }
+      let out = lines.join('\n');
+      if (clLines.length) out = '# top-level (cluster) overrides:\n' + clLines.join('\n') + '\n\n' + out;
+      return out;
+    }
+
+    // --- wiring ---
+    function setMode(mode) {
+      const prev = state.mode;
+      state.mode = mode;
+      for (const m of ['blade', 'tuft', 'field'])
+        document.getElementById('mode-' + m).classList.toggle('on', mode === m);
+      const field = mode === 'field';
+      // Field mode: hide the single-mesh viewer + close-up ground, show the big
+      // ground + fog, and pull the camera back. Restore on the way out.
+      if (current) current.visible = !field;
+      if (normalHelper) { scene.remove(normalHelper); normalHelper = null; }
+      ground.visible = grid.visible = !field;
+      fieldGround.visible = field;
+      fieldGroup.visible = field;
+      scene.fog = field ? new THREE.Fog(0x16180f, 8, 30) : null;
+      if (field && prev !== 'field') {
+        camera.position.set(0, 2.4, 7); controls.target.set(0, 0.4, 0);
+      } else if (!field && prev === 'field') {
+        camera.position.set(0.8, 0.5, 1.0); controls.target.set(0, 0.3, 0);
+      }
+      buildControls();
+      generate();
+    }
+    document.querySelectorAll('[data-mode]').forEach(b =>
+      b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+    document.getElementById('profile').addEventListener('change', async e => {
+      state.profile = e.target.value;
+      await loadProfileDefaults(state.profile);
+      buildControls();
+      generate();
+    });
+
+    ['root_color', 'tip_color'].forEach(id =>
+      document.getElementById(id).addEventListener('input', () => {
+        state.mesh[id] = hexToLinear(document.getElementById(id).value);
+        scheduleGenerate();
+      }));
+
+    ['wire', 'normals', 'vcolor'].forEach(id =>
+      document.getElementById(id).addEventListener('change', applyView));
+
+    // --- wind + lighting controls (pure client, no regen) ---
+    const bind = (id, fn) => {
+      const el = document.getElementById(id);
+      const run = () => fn(+el.value, el);
+      el.addEventListener('input', run); return run;
+    };
+    // `animate wind` gates strength to 0 (freeze) without losing the slider value.
+    let windOn = true;
+    const applyWindStrength = () =>
+      wind.uStrength.value = windOn ? +document.getElementById('windStrength').value : 0;
+    const windStrength = bind('windStrength', v => { document.getElementById('windStrengthV').textContent = v.toFixed(2); applyWindStrength(); });
+    const windBase = bind('windBase', v => { document.getElementById('windBaseV').textContent = v.toFixed(2); wind.uBaseWind.value = v; });
+    const windGust = bind('windGust', v => { document.getElementById('windGustV').textContent = v.toFixed(2); wind.uGustAmp.value = v; });
+    const windScale = bind('windScale', v => { document.getElementById('windScaleV').textContent = v + ' m'; wind.uGustScale.value = 1 / Math.max(1, v); });
+    const windSpeed = bind('windSpeed', v => { document.getElementById('windSpeedV').textContent = v.toFixed(2); wind.uGustSpeed.value = v; });
+    const windFlutter = bind('windFlutter', v => { document.getElementById('windFlutterV').textContent = v.toFixed(2); wind.uFlutter.value = v; });
+    const windFlutterFreq = bind('windFlutterFreq', v => { document.getElementById('windFlutterFreqV').textContent = v.toFixed(1); wind.uFlutterFreq.value = v; });
+    const windStiff = bind('windStiff', v => { document.getElementById('windStiffV').textContent = v.toFixed(2); wind.uStiffVar.value = v; });
+    const windBendExp = bind('windBendExp', v => { document.getElementById('windBendExpV').textContent = v.toFixed(2); wind.uBendExp.value = v; });
+    const windIndep = bind('windIndep', v => { document.getElementById('windIndepV').textContent = v.toFixed(2); wind.uBladeIndep.value = v; });
+    const windDirPerturb = bind('windDirPerturb', v => { document.getElementById('windDirPerturbV').textContent = v.toFixed(2); wind.uDirPerturb.value = v; });
+    const windDir = bind('windDir', v => {
+      document.getElementById('windDirV').textContent = v + '°';
+      const r = v * Math.PI / 180; wind.uWindDir.value.set(Math.sin(r), Math.cos(r));
+    });
+    document.getElementById('wind').addEventListener('change', e => { windOn = e.target.checked; applyWindStrength(); });
+    document.getElementById('windDebug').addEventListener('change', e => { wind.uDebugGust.value = e.target.checked ? 1 : 0; });
+
+    const sunEl = bind('sunEl', v => { document.getElementById('sunElV').textContent = v + '°'; sunState.elevation = v * Math.PI / 180; updateSun(); });
+    const sunAz = bind('sunAz', v => { document.getElementById('sunAzV').textContent = v + '°'; sunState.azimuth = v * Math.PI / 180; updateSun(); });
+    const exposure = bind('exposure', v => { document.getElementById('expV').textContent = v.toFixed(2); renderer.toneMappingExposure = v; });
+    document.getElementById('shadows').addEventListener('change', e => { renderer.shadowMap.enabled = e.target.checked; scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); });
+    // initialize readouts + state from the default slider values
+    [windStrength, windBase, windGust, windScale, windSpeed, windFlutter, windFlutterFreq, windStiff, windBendExp, windIndep, windDirPerturb, windDir, sunEl, sunAz, exposure].forEach(fn => fn());
+
+    // Force an immediate regen (bypass the slider debounce). Because the server
+    // hot-reloads its generator modules + re-reads the profile YAML per request,
+    // this reflects edits to the Python code or the profile file with no restart,
+    // while keeping your current slider values.
+    document.getElementById('regen').addEventListener('click', () => {
+      clearTimeout(genTimer); generate();
+    });
+    document.getElementById('reset').addEventListener('click', async () => {
+      await loadProfileDefaults(state.profile); buildControls(); generate();
+    });
+    document.getElementById('copy').addEventListener('click', () => {
+      const y = buildYaml();
+      document.getElementById('yaml').value = y;
+      navigator.clipboard?.writeText(y);
+    });
+
+    // --- presets: full studio-state snapshots saved to disk as JSON ---
+    let currentPreset = '';
+    const $ = id => document.getElementById(id);
+    function snapshot() {
+      const g = id => +$(id).value;
+      return {
+        mode: state.mode, profile: state.profile, seed: state.seed,
+        blade: state.blade, mesh: state.mesh, cluster: state.cluster, field: state.field,
+        wind: { on: $('wind').checked, strength: g('windStrength'), base: g('windBase'), gust: g('windGust'), scale: g('windScale'), speed: g('windSpeed'), flutter: g('windFlutter'), flutterFreq: g('windFlutterFreq'), stiff: g('windStiff'), bendExp: g('windBendExp'), indep: g('windIndep'), dirPerturb: g('windDirPerturb'), dir: g('windDir') },
+        light: { shadows: $('shadows').checked, sunEl: g('sunEl'), sunAz: g('sunAz'), exposure: g('exposure') },
+        view: { wire: $('wire').checked, vcolor: $('vcolor').checked },
+        colors: { root: $('root_color').value, tip: $('tip_color').value },
+      };
+    }
+    async function applyPreset(p) {
+      state.profile = p.profile; $('profile').value = p.profile;
+      state.seed = p.seed ?? 0;
+      state.blade = { ...p.blade }; state.mesh = { ...p.mesh };
+      state.cluster = { ...p.cluster }; state.field = { ...p.field };
+      if (p.colors) { $('root_color').value = p.colors.root; $('tip_color').value = p.colors.tip; }
+      const setv = (id, val) => { if (val != null) $(id).value = val; };
+      if (p.wind) { $('wind').checked = p.wind.on !== false; setv('windStrength', p.wind.strength); setv('windBase', p.wind.base); setv('windGust', p.wind.gust); setv('windScale', p.wind.scale); setv('windSpeed', p.wind.speed); setv('windFlutter', p.wind.flutter); setv('windFlutterFreq', p.wind.flutterFreq); setv('windStiff', p.wind.stiff); setv('windBendExp', p.wind.bendExp); setv('windIndep', p.wind.indep); setv('windDirPerturb', p.wind.dirPerturb); setv('windDir', p.wind.dir); windOn = $('wind').checked; }
+      if (p.light) { $('shadows').checked = p.light.shadows !== false; setv('sunEl', p.light.sunEl); setv('sunAz', p.light.sunAz); setv('exposure', p.light.exposure); renderer.shadowMap.enabled = $('shadows').checked; }
+      if (p.view) { $('wire').checked = !!p.view.wire; $('vcolor').checked = p.view.vcolor !== false; }
+      [windStrength, windBase, windGust, windScale, windSpeed, windFlutter, windFlutterFreq, windStiff, windBendExp, windIndep, windDirPerturb, windDir, sunEl, sunAz, exposure].forEach(fn => fn());
+      setMode(p.mode || 'tuft');   // rebuilds controls, restores camera/visibility, regenerates
+    }
+    async function refreshPresets(selectName) {
+      const d = await (await fetch('/presets')).json();
+      const sel = $('presetSelect'); sel.length = 1;   // keep the placeholder option
+      (d.presets || []).forEach(n => sel.add(new Option(n, n)));
+      if (selectName) sel.value = selectName;
+    }
+    // Inline name field instead of window.prompt() — prompt() is disabled in
+    // embedded webviews (e.g. VS Code's Simple Browser), which silently broke save.
+    const defaultPresetName = () => currentPreset || `${state.profile}_${state.mode}`;
+    async function savePreset(name) {
+      const res = await fetch('/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, preset: snapshot() }) });
+      const d = await res.json();
+      if (d.error) { showErr('save failed: ' + d.error); return; }
+      currentPreset = d.name; $('presetName').value = d.name; showErr(''); await refreshPresets(d.name);
+    }
+    // save as… uses whatever is typed in the field (falling back to a default name);
+    // save overwrites the loaded/typed name. Neither needs a native dialog.
+    $('saveAs').addEventListener('click', () => savePreset($('presetName').value.trim() || defaultPresetName()));
+    $('save').addEventListener('click', () => savePreset(currentPreset || $('presetName').value.trim() || defaultPresetName()));
+    $('presetName').addEventListener('keydown', e => { if (e.key === 'Enter') $('saveAs').click(); });
+    $('presetSelect').addEventListener('change', async e => {
+      const name = e.target.value; if (!name) return;
+      try {
+        const p = await (await fetch('/preset?name=' + encodeURIComponent(name))).json();
+        if (p.error) throw new Error(p.error);
+        currentPreset = name; $('presetName').value = name; await applyPreset(p);
+      } catch (err) { showErr('load failed: ' + err.message); }
+    });
+
+    // --- boot ---
+    async function boot() {
+      fit();
+      const first = await (await fetch('/params')).json();
+      const sel = document.getElementById('profile');
+      first.profiles.forEach(p => sel.add(new Option(p, p)));
+      state.profile = first.profiles[0]; sel.value = state.profile;
+      // seed root_color/tip_color into mesh state from defaults
+      await loadProfileDefaults(state.profile);
+      buildControls();
+      state.mesh.root_color = hexToLinear(document.getElementById('root_color').value);
+      state.mesh.tip_color = hexToLinear(document.getElementById('tip_color').value);
+      await refreshPresets();
+      generate();
+    }
+    boot();
+
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      wind.uTime.value = clock.getElapsedTime();
+      if (document.getElementById('spin').checked && current && state.mode !== 'field') current.rotation.y += 0.01;
+      normalHelper?.update();
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>

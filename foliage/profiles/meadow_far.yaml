@@ -1,0 +1,26 @@
+# Distance grass: one wide, coarse clump standing in for a square metre of
+# meadow. The game plants these out to about 100 m, where real tufts
+# (`broadleaf_grass`) have long since faded out; they keep the meadow's
+# silhouette and colour without its triangle count. Few blades, each several
+# times wider than a real one, two segments tall.
+
+n_blades: 9
+n_blades_var: 2
+length_range: [300, 480]
+compliance_gamma_range: [1.6, 2.4]
+base_thickness_range: [3, 6]
+tip_thickness_range: [0.8, 1.5]
+noise_strength: 0.04
+x_spread: 430
+fan_out_strength: 0.25
+spread_range: [60, 95]
+edge_noise: 1.0
+
+mesh:
+  segments: 2
+  droop_deg: 26
+  droop_gamma: 2.0
+  up_normal_blend: 0.8
+  # Same gradient as `broadleaf_grass`, so near and far grass are one colour.
+  root_color: [0.12, 0.24, 0.06]
+  tip_color: [0.50, 0.72, 0.24]

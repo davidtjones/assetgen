@@ -1,0 +1,24 @@
+# Full upright tuft with fan-out at the edges.
+# Workhorse general-purpose grass — dense enough to read as a proper clump
+# from typical camera distances.
+
+n_blades: 28
+n_blades_var: 5
+length_range: [280, 500]
+compliance_gamma_range: [2.0, 3.0]
+base_thickness_range: [6, 12]
+tip_thickness_range: [1.5, 2.5]
+noise_strength: 0.05
+x_spread: 170
+fan_out_strength: 0.3
+
+# 3D-only knobs for the mesh backend (ignored by the raster/billboard path).
+# All optional; shown here as a worked example. UV.y on the mesh runs 0 (root)
+# -> 1 (tip) and is the wind weight a future shader multiplies displacement by.
+mesh:
+  segments: 6          # quads up the blade — the vertex-cost knob (3-7 typical)
+  droop_deg: 30        # tip tangent pitch off vertical (self-weight arc)
+  droop_gamma: 2.2     # >1 concentrates the bend near the tip
+  up_normal_blend: 0.7 # 0 = flat geometric normal, 1 = fully ground-up
+  root_color: [0.12, 0.24, 0.06]
+  tip_color: [0.50, 0.72, 0.24]

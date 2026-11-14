@@ -1,0 +1,28 @@
+# Angular broken rock: stronger noise and more/deeper fracture faces, so it reads
+# sharp and shattered rather than smooth. See rock_core.RockParams for the fields.
+
+subdivisions: 4
+
+# The angular sibling of `boulder`: stronger big-form displacement and one more
+# facet, but the same low octave count so the surface stays smooth. Grit comes
+# from the normal map, not vertex noise. See boulder.yaml on amp vs octaves.
+displace_amp: 0.28
+displace_freq: 1.15
+displace_octaves: 2
+
+ellipsoid_min: 0.60
+ellipsoid_max: 1.40
+
+# Roughen off; the normal map breaks up the cut faces. See boulder.yaml.
+roughen_amp: 0.0
+roughen_freq: 6.0
+
+# Three shallow facets. Deep/numerous cuts shear the rock into a slab.
+side_cuts: 3
+cut_offset_min: 0.68
+cut_offset_max: 0.90
+
+base_offset_min: 0.50
+base_offset_max: 0.66
+
+seeds: [0, 1, 2, 3, 4]

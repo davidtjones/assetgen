@@ -1,0 +1,35 @@
+# Bedded outcrop: a low, wide mass of layered rock weathered into ledges, the
+# kind that breaks through a hillside. Reads as bedrock rather than a loose
+# stone, and its ledges echo the strata the terrain shader draws on cliffs.
+# See rock_core.RockParams for the fields.
+
+subdivisions: 4
+
+displace_amp: 0.24
+displace_freq: 1.1
+displace_octaves: 2
+
+# Wide and low.
+ellipsoid_min: 0.95
+ellipsoid_max: 1.45
+ellipsoid_y_min: 0.55
+ellipsoid_y_max: 0.80
+
+# Five uneven beds, each stepped in by up to a third, dipping gently.
+strata: 5
+strata_depth: 0.34
+strata_tilt: 0.16
+
+roughen_amp: 0.0
+
+# Joints: bedded rock breaks along a few near-vertical faces.
+side_cuts: 3
+cut_offset_min: 0.70
+cut_offset_max: 0.95
+
+# Sits deep: most of an outcrop is underground.
+base_tilt: 0.08
+base_offset_min: 0.18
+base_offset_max: 0.30
+
+seeds: [0, 1, 2, 3, 4]

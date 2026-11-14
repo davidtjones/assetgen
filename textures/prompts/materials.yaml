@@ -1,0 +1,152 @@
+# Named prompts for ground-material generation (StableMaterials / Path B).
+#
+# The MaterialPrompt ComfyUI node (in asset_test_utils) reads this file and
+# shows the keys as a dropdown; the selected value feeds the sampler, and the
+# key becomes the material name (folder under assets/textures/<name>/).
+#
+# Add a keeper by appending an entry. Keys should be valid folder names
+# (snake_case). Keep prompts material-centric and top-down — StableMaterials is
+# trained on flat SVBRDF scans, not landscape photos.
+#
+# Two entry formats: key: <positive prompt string>          # positive only key:
+#   # positive + optional negative positive: <...> negative: <...> Picking a
+#   preset in the MaterialPrompt node fills its editable text/negative widgets
+#   from here, so you can tweak before generating.
+
+grassland_floor:
+  positive: >-
+    grassland floor material, dark earthy soil and packed dirt, matted dead
+    grass thatch and small moss patches, a few tiny pebbles and thin roots,
+    desaturated olive-brown with a faint green cast, even flat lighting,
+    top-down orthographic view, seamless tileable, highly detailed PBR material
+  negative: >-
+    bright, saturated, vivid green lawn, astroturf, tall grass blades, sand,
+    desert, gravel, large rocks, harsh shadows, glossy, wet reflections,
+    vignette
+
+rocky_slope:
+  positive: broken angular rock and loose scree, gritty brown dirt in the gaps, eroded, desaturated grey-brown
+  negative: moss, green, rounded boulders, smooth, bright, saturated, wet
+
+subsoil_ground:
+  positive: crumbly dirt, dark desaturated brown
+  negative: red, rust, terracotta, orange, saturated, blue, ice, moss, grass, white
+
+subsoil_wall:
+  positive: crumbly dirt soil, dark desaturated brown
+  negative: red, rust, terracotta, orange, saturated, blue, ice, moss, grass, white, dry, ground
+
+coastline_sand:
+  positive: coarse beach sand, white sand
+  negative: yellow, black
+
+rock_surface:
+  positive: solid rock, weathered, erosion, seamless tileable, highly detailed PBR material
+  negative: yellow, black
+
+# --- Materials for `pixi run material` ----------------------------------------
+# `subject` is what FLUX.2 klein is asked to photograph (gen_material.py adds
+# the framing). Optional: `avoid` (extra negative prompt), `tile` (both, x,
+# y or none; default both) and `edit_of` (this is a variant of another entry:
+# `subject` then says what to change in that entry's image of the same seed). `positive`/`negative` on the same entry are the
+# older StableMaterials prompt (`pixi run material-sm`).
+
+cobblestone:
+  subject: >-
+    photograph from directly above of an old rough cobblestone road, large
+    uneven worn stones with packed dirt between them
+
+# --- Terrain layers (bake_ground.py sources) --------------------------------
+# Generated headless with `pixi run material <name>`; see textures/scripts/.
+
+cliff_strata:
+  subject: photograph of a sedimentary limestone cliff rock face, horizontal layered strata with fractures and ledges, weathered grey
+  positive: >-
+    sedimentary cliff rock face, horizontal layered strata, weathered grey
+    limestone with fractures and ledges, rough stone surface
+  negative: moss, green, grass, bricks, tiles, pebbles, smooth, glossy, wet, saturated
+
+scree_gravel:
+  subject: photograph from directly above of loose angular grey gravel and broken stones, scree, small sharp rocks packed with brown dirt between them
+  positive: >-
+    loose angular grey gravel and broken stones, scree, small sharp rocks packed
+    with brown dirt between them
+  negative: moss, green, grass, bricks, tiles, round pebbles, glossy, wet, saturated
+
+forest_floor:
+  subject: photograph from directly above of a forest floor, dry pine needles, fallen brown leaves, small twigs and dark soil
+  positive: >-
+    forest floor, dry pine needles, fallen leaves, small twigs and dark soil,
+    brown and ochre
+  negative: green grass, lawn, stones, gravel, glossy, wet, saturated
+
+meadow_ground:
+  subject: photograph from directly above of short dense meadow grass, fine grass blades, natural muted green
+  positive: >-
+    short dense green grass lawn seen from above, meadow turf, fine grass blades,
+    natural muted green
+  negative: flowers, dirt path, stones, sand, glossy, plastic, astroturf
+
+dry_soil:
+  subject: photograph from directly above of dry packed earth, fine brown dirt with small pebbles and tiny cracks
+  positive: >-
+    dry packed earth soil, fine dirt with small pebbles and tiny cracks, brown
+  negative: red, orange, green, grass, moss, large rocks, glossy, wet
+
+packed_earth:
+  subject: >-
+    photograph from directly above of bare packed earth, fine dark brown soil,
+    slightly lumpy, with grit and a few small scattered stones
+  avoid: cracks, cracked mud, dry lake bed, plates, tiles, grass, leaves, large rocks
+
+desert_sand:
+  subject: photograph from directly above of fine desert sand with soft wind ripples, pale warm tan
+  positive: >-
+    fine desert sand with soft wind ripples, pale warm tan
+  negative: rocks, stones, grass, footprints, glossy, wet
+
+# --- Tree bark (trees/scripts/tree_textures.py sources) ----------------------
+# Generated headless with `pixi run material <name>`. The trunk runs up the
+# image; a tile covers about a metre of trunk each way. Keepers are named in
+# `tree_textures.BARK`.
+
+bark_oak:
+  subject: >-
+    macro photograph of old oak bark surface, short thick blocky ridges broken
+    up by cross cracks, irregular interlocking furrows that split and merge,
+    rugged and uneven, roughly vertical grain, grey-brown
+  avoid: long straight parallel lines, stripes, planks, corduroy, smooth
+  positive: oak tree bark, deep furrows, rough ridges, grey-brown
+  negative: blue, purple, ice, saturated, leaves, moss, green, planks, smooth, glossy
+
+bark_oak_mossy:
+  edit_of: bark_oak
+  subject: >-
+    the same oak bark photograph with every bark plate and crack kept exactly
+    where it is, now overgrown with soft green moss filling the cracks and
+    spreading in patches over about half of the plates
+
+bark_pine:
+  subject: macro photograph of pine bark surface, large flaky plates separated by dark fissures running from top to bottom, muted warm brown
+  positive: pine tree bark, flaky plates, dark fissures, reddish brown
+  negative: blue, purple, ice, saturated, leaves, moss, green, planks, smooth, glossy
+
+bark_spruce:
+  subject: macro photograph of spruce bark surface, small rough scales, grey-brown
+  positive: spruce tree bark, small rough scales, grey-brown
+  negative: blue, purple, ice, saturated, leaves, moss, green, planks, smooth, glossy
+
+bark_birch:
+  subject: macro photograph of white birch bark surface, papery white bark with thin dark horizontal lines and a few black cracks
+  positive: white birch tree bark, papery, thin dark horizontal lines, black cracks
+  negative: blue, purple, ice, saturated, leaves, moss, green, brown, planks, glossy
+
+bark_aspen:
+  subject: macro photograph of aspen bark surface, smooth pale cream bark with scattered black scars
+  positive: aspen tree bark, smooth pale cream bark, black scars
+  negative: blue, purple, ice, saturated, leaves, moss, brown, planks, glossy
+
+bark_dead:
+  subject: macro photograph of a dead tree trunk surface without bark, weathered grey bare wood with vertical cracks, dry
+  positive: dead tree wood without bark, weathered grey, vertical cracks, dry
+  negative: blue, purple, ice, saturated, leaves, moss, green, planks, boards, paint, glossy
