@@ -1,0 +1,14 @@
+# A wild boar: the plain quadruped mammal. Upright legs under the body, a short tail.
+subject: >-
+  a wild forest boar, dark brown bristly fur, long snout with two small curved tusks,
+  stocky body, short thin legs, small tail
+body: quadruped
+# Height of the highest point (the shoulder hump) in metres, standing.
+height: 0.95
+# Bones in the tail chain; 0 for none.
+tail_bones: 2
+# Triangle budget for the game mesh.
+tris: 8000
+# Walk: one gait cycle in seconds and the step length of one foot, in metres.
+walk: {cycle: 1.0, stride: 0.7, lift: 0.08}
+seed: 3

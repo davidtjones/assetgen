@@ -1,0 +1,11 @@
+# A big ground lizard: a sprawling quadruped with a long tail, to test a body plan
+# that auto-riggers handle badly (legs out to the side, a tail as long as the body).
+subject: >-
+  a large monitor lizard with mossy green and grey scales, low heavy body,
+  four sprawling clawed legs, long thick tapering tail, blunt head
+body: quadruped
+height: 0.55
+tail_bones: 5
+tris: 9000
+walk: {cycle: 1.2, stride: 0.6, lift: 0.05}
+seed: 2

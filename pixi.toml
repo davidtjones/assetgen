@@ -6,7 +6,8 @@ platforms = ["linux-64"]
 version = "0.1.0"
 
 [tasks]
-comfyui = { cmd = "python main.py --listen 127.0.0.1", cwd = "tools/ComfyUI" }
+# --disable-dynamic-vram: ComfyUI 0.45's dynamic VRAM (comfy_aimdo) segfaults freeing a buffer after a CHORD run.
+comfyui = { cmd = "python main.py --listen 127.0.0.1 --disable-dynamic-vram", cwd = "tools/ComfyUI" }
 silhouettes = "python foliage/scripts/generate_silhouette.py"
 blades = "python foliage/scripts/generate_geometry.py"
 # Undergrowth plants (fern, flower, heather, scrub) -> ../game3d/assets/meshes/plants/
@@ -27,8 +28,8 @@ preview-rocks = { cmd = "python -m http.server 8001", cwd = "rocks/preview" }
 # Foliage studio: live blade/tuft editor backed by the Python generator.
 # Open http://localhost:8000/preview/studio.html
 studio = "python foliage/scripts/serve.py"
-# Wearable-piece pipeline: concept -> mesh -> clean -> check. `pixi run gear --help`.
-gear = "python gear/scripts/gear.py"
+# Creatures: concept -> TRELLIS.2 mesh -> rig + walk/idle -> check -> game. `pixi run creature --help`.
+creature = "python creatures/scripts/creature.py"
 # The learned-terrain research probe was extracted to its own repo (terrain-gen,
 # a sibling of game3d in the game3d-ws workspace); its terrain-* pixi tasks and the
 # rasterio dependency moved with it.
@@ -39,9 +40,9 @@ pip = "*"
 matplotlib = "*"
 
 [pypi-dependencies]
-torch = { version = ">=2.5", index = "https://download.pytorch.org/whl/cu124" }
-torchvision = { version = "*", index = "https://download.pytorch.org/whl/cu124" }
-torchaudio = { version = "*", index = "https://download.pytorch.org/whl/cu124" }
+torch = { version = ">=2.14", index = "https://download.pytorch.org/whl/cu130" }
+torchvision = { version = "*", index = "https://download.pytorch.org/whl/cu130" }
+torchaudio = { version = "*", index = "https://download.pytorch.org/whl/cu130" }
 
 [activation.env]
 # The env's OpenSSL has the prefix it was installed under baked in. The repo moved from

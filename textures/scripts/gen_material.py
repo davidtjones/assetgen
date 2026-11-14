@@ -45,7 +45,7 @@ OUT = HERE.parent / "out" / "mat"
 WORKFLOWS = HERE.parent / "workflows"
 COMFY = REPO / "tools" / "ComfyUI"
 
-sys.path.insert(0, str(REPO / "gear" / "scripts"))
+sys.path.insert(0, str(REPO / "common"))
 from comfy_client import ComfyClient  # noqa: E402
 
 # Appended to every subject: a texture is a surface seen square-on with no lighting of its own.
@@ -77,7 +77,7 @@ def _server() -> ComfyClient:
     if client.is_up():
         return client
     log = open(OUT / "comfyui.log", "w")
-    proc = subprocess.Popen([sys.executable, "main.py", "--listen", "127.0.0.1"], cwd=COMFY, stdout=log, stderr=log)
+    proc = subprocess.Popen([sys.executable, "main.py", "--listen", "127.0.0.1", "--disable-dynamic-vram"], cwd=COMFY, stdout=log, stderr=log)
     atexit.register(proc.terminate)
     for _ in range(180):
         if client.is_up():

@@ -1,0 +1,67 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "_meta": {"title": "FLUX.2 klein (base, non-distilled)"},
+    "inputs": {"unet_name": "{{unet}}", "weight_dtype": "default"}
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "_meta": {"title": "Qwen3 text encoder"},
+    "inputs": {"clip_name": "{{text_encoder}}", "type": "flux2", "device": "default"}
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "_meta": {"title": "FLUX.2 VAE"},
+    "inputs": {"vae_name": "{{vae}}"}
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "positive"},
+    "inputs": {"text": "{{positive}}", "clip": ["2", 0]}
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "negative"},
+    "inputs": {"text": "{{negative}}", "clip": ["2", 0]}
+  },
+  "6": {
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {"title": "canvas"},
+    "inputs": {"width": "{{width}}", "height": "{{height}}", "batch_size": 1}
+  },
+  "7": {
+    "class_type": "RandomNoise",
+    "_meta": {"title": "noise"},
+    "inputs": {"noise_seed": "{{seed}}"}
+  },
+  "8": {
+    "class_type": "KSamplerSelect",
+    "_meta": {"title": "sampler"},
+    "inputs": {"sampler_name": "euler"}
+  },
+  "9": {
+    "class_type": "Flux2Scheduler",
+    "_meta": {"title": "schedule"},
+    "inputs": {"steps": "{{steps}}", "width": "{{width}}", "height": "{{height}}"}
+  },
+  "10": {
+    "class_type": "CFGGuider",
+    "_meta": {"title": "guidance"},
+    "inputs": {"model": ["1", 0], "positive": ["4", 0], "negative": ["5", 0], "cfg": "{{cfg}}"}
+  },
+  "11": {
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {"title": "sample"},
+    "inputs": {"noise": ["7", 0], "guider": ["10", 0], "sampler": ["8", 0], "sigmas": ["9", 0], "latent_image": ["6", 0]}
+  },
+  "12": {
+    "class_type": "VAEDecode",
+    "_meta": {"title": "decode"},
+    "inputs": {"samples": ["11", 0], "vae": ["3", 0]}
+  },
+  "13": {
+    "class_type": "SaveImage",
+    "_meta": {"title": "save concept"},
+    "inputs": {"images": ["12", 0], "filename_prefix": "{{prefix}}"}
+  }
+}
