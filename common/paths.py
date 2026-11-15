@@ -17,8 +17,8 @@ def game3d_dir() -> Path:
     env = os.environ.get("GAME3D_DIR")
     root = Path(env).expanduser().resolve() if env else (REPO.parent / "game3d").resolve()
     if not (root / "Cargo.toml").is_file():
-        how = "GAME3D_DIR" if env else "the default (beside assetgen; set GAME3D_DIR to override)"
-        raise SystemExit(f"game3d not found at {root} (from {how}): no Cargo.toml there")
+        hint = "check GAME3D_DIR" if env else "it should sit beside assetgen, or set GAME3D_DIR"
+        raise SystemExit(f"game3d not found at {root}: no Cargo.toml there ({hint})")
     return root
 
 
