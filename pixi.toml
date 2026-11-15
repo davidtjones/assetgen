@@ -6,33 +6,32 @@ platforms = ["linux-64"]
 version = "0.1.0"
 
 [tasks]
+# Scripts run as modules from the repo root (`python -m <generator>.scripts.<name>`), so
+# they import shared code as packages (`common.gltf_io`, `textures.scripts.tex_core`).
+# Outputs into the game go through `common/paths.py` (`GAME3D_DIR` overrides ../game3d).
 # --disable-dynamic-vram: ComfyUI 0.45's dynamic VRAM (comfy_aimdo) segfaults freeing a buffer after a CHORD run.
 comfyui = { cmd = "python main.py --listen 127.0.0.1 --disable-dynamic-vram", cwd = "tools/ComfyUI" }
-silhouettes = "python foliage/scripts/generate_silhouette.py"
-blades = "python foliage/scripts/generate_geometry.py"
+silhouettes = "python -m foliage.scripts.generate_silhouette"
+blades = "python -m foliage.scripts.generate_geometry"
 # Undergrowth plants (fern, flower, heather, scrub) -> ../game3d/assets/meshes/plants/
-plants = "python foliage/scripts/generate_plants.py"
-rocks = "python rocks/scripts/generate_rocks.py"
-moon = "python moon/scripts/generate_moon.py"
+plants = "python -m foliage.scripts.generate_plants"
+rocks = "python -m rocks.scripts.generate_rocks"
 # Procedural terrain layers (grass, dirt, rock, scree, sand) -> ../game3d/assets/textures/terrain/
-ground = "python textures/scripts/bake_ground.py"
+ground = "python -m textures.scripts.bake_ground"
 # Trees: meshes, atlases, impostors, manifest -> ../game3d/assets/trees/
-trees = "python trees/scripts/generate_trees.py"
+trees = "python -m trees.scripts.generate_trees"
 # Tileable PBR material candidates (FLUX.2 klein photo -> CHORD maps) with a lit preview -> textures/out/mat/
-material = "python textures/scripts/gen_material.py"
+material = "python -m textures.scripts.gen_material"
 # The older StableMaterials generator -> textures/out/sm/
-material-sm = "python textures/scripts/gen_material_sm.py"
+material-sm = "python -m textures.scripts.gen_material_sm"
 preview-foliage = { cmd = "python -m http.server 8000", cwd = "foliage/preview" }
 # Rock preview: open http://localhost:8001/ (meshes/ is symlinked into preview/).
 preview-rocks = { cmd = "python -m http.server 8001", cwd = "rocks/preview" }
 # Foliage studio: live blade/tuft editor backed by the Python generator.
 # Open http://localhost:8000/preview/studio.html
-studio = "python foliage/scripts/serve.py"
+studio = "python -m foliage.scripts.serve"
 # Creatures: concept -> TRELLIS.2 mesh -> rig + walk/idle -> check -> game. `pixi run creature --help`.
-creature = "python creatures/scripts/creature.py"
-# The learned-terrain research probe was extracted to its own repo (terrain-gen,
-# a sibling of game3d in the game3d-ws workspace); its terrain-* pixi tasks and the
-# rasterio dependency moved with it.
+creature = "python -m creatures.scripts.creature"
 
 [dependencies]
 python = "3.12.*"

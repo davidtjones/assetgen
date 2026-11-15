@@ -37,8 +37,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-import tree_wood
-from tree_textures import BARK_METRES, card_rect
+from trees.scripts import tree_wood
+from trees.scripts.tree_textures import BARK_METRES, card_rect
 
 UP = np.array([0.0, 1.0, 0.0])
 GOLDEN = 2.39996

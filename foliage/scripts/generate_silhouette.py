@@ -25,7 +25,7 @@ from typing import Sequence
 
 from PIL import Image, ImageDraw
 
-from blade_core import (
+from foliage.scripts.blade_core import (
     CANVAS_W,
     CANVAS_H,
     GROUND_Y,

@@ -32,8 +32,8 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
-from gltf_io import write_gltf  # noqa: E402
+from common.gltf_io import write_gltf
+from common.paths import game3d_assets
 
 VARIANTS = 4
 UP = np.array([0.0, 1.0, 0.0])
@@ -263,7 +263,7 @@ PLANTS = {"fern": lambda rng, v: fern(rng), "flower": flower,
 
 
 def main():
-    out = Path(__file__).resolve().parents[3] / "game3d" / "assets" / "meshes" / "plants"
+    out = game3d_assets("meshes", "plants")
     out.mkdir(parents=True, exist_ok=True)
     for index, (name, build) in enumerate(PLANTS.items()):
         for v in range(VARIANTS):

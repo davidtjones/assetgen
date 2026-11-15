@@ -6,7 +6,7 @@ tiled 2 x 2 on a flat panel under a low light, then wrapped round a cylinder.
 Look for seams and repetition in the panel, and for whether the relief reads
 as shape rather than as a printed picture.
 
-    python textures/scripts/preview.py out.jpg <material dir>...
+    pixi run python -m textures.scripts.preview out.jpg <material dir>...
 
 A material dir holds `albedo.png`, `normal.png` (OpenGL), `roughness.png` and
 `height.png`.
@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-import tex_core as tc
+from textures.scripts import tex_core as tc
 
 CELL, GAP, HEAD, ROW_HEAD = 300, 12, 70, 36
 COLUMNS = [("Colour", "albedo"), ("Normal", "surface direction"), ("Roughness", "white = matte"),

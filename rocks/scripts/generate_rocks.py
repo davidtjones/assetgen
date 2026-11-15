@@ -17,13 +17,11 @@ from pathlib import Path
 
 import yaml
 
-# gltf_io lives in the shared assetgen/common/ module (used by every generator).
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
 
 from dataclasses import replace
 
-from rock_core import RockParams, build_rock
-from gltf_io import write_gltf
+from rocks.scripts.rock_core import RockParams, build_rock
+from common.gltf_io import write_gltf
 
 # Seed variants baked per profile when the YAML doesn't set its own `seeds`.
 DEFAULT_SEEDS = [0, 1, 2, 3, 4]

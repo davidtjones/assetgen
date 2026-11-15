@@ -36,7 +36,7 @@ import math
 import random
 from dataclasses import dataclass, replace
 
-from blade_core import BladeParams, ClusterParams, blade_width, sample_blade
+from foliage.scripts.blade_core import BladeParams, ClusterParams, blade_width, sample_blade
 
 
 # Pixel -> world scale for blade geometry. At 1/600, a ~500px blade stands ~0.83

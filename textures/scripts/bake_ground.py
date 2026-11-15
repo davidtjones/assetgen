@@ -26,11 +26,11 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-import tex_core as tc
+from common.paths import game3d_assets
+from textures.scripts import tex_core as tc
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parent / "out"
-GAME = HERE.parents[2] / "game3d" / "assets" / "textures" / "terrain"
 
 
 def grass(n, seed):
@@ -248,13 +248,14 @@ def main():
         packed.append((name, *bake(name, fn, seed, args.size)))
     if args.only:
         return
-    GAME.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(np.concatenate([p[1] for p in packed], 0), "RGBA").save(GAME / "albedo_height.png")
-    Image.fromarray(np.concatenate([p[2] for p in packed], 0), "RGBA").save(GAME / "normal_rough.png")
+    game = game3d_assets("textures", "terrain")
+    game.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(np.concatenate([p[1] for p in packed], 0), "RGBA").save(game / "albedo_height.png")
+    Image.fromarray(np.concatenate([p[2] for p in packed], 0), "RGBA").save(game / "normal_rough.png")
     meta = {"size": args.size, "layers": [p[0] for p in packed],
             "mean_albedo_srgb": {p[0]: [round(float(c), 4) for c in p[3]] for p in packed}}
-    (GAME / "layers.json").write_text(json.dumps(meta, indent=2) + "\n")
-    print(f"packed {len(packed)} layers -> {GAME}")
+    (game / "layers.json").write_text(json.dumps(meta, indent=2) + "\n")
+    print(f"packed {len(packed)} layers -> {game}")
 
 
 if __name__ == "__main__":

@@ -76,14 +76,10 @@ import numpy as np
 from PIL import Image
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE))
-sys.path.insert(0, str(HERE.parents[1] / "common"))
+from common import gltf_io
+from common.paths import game3d_assets
+from trees.scripts import tree_core, tree_textures
 
-import gltf_io  # noqa: E402
-import tree_core  # noqa: E402
-import tree_textures  # noqa: E402
-
-GAME = HERE.parents[2] / "game3d" / "assets" / "trees"
 OUT = HERE.parent / "out"
 VIEWS = 16                        # impostor views round the trunk
 CELL_W, CELL_H = 128, 256         # one impostor view in the atlas
@@ -237,7 +233,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--preview", action="store_true")
     args = ap.parse_args()
-    GAME.mkdir(parents=True, exist_ok=True)
+    game = game3d_assets("trees")
+    game.mkdir(parents=True, exist_ok=True)
     OUT.mkdir(parents=True, exist_ok=True)
     began = time.time()
     count = sum(len(s.seeds) for s in tree_core.SPECIES)
@@ -258,7 +255,7 @@ def main():
             colour = maps[0]
             names = tuple(f"{kind}_{suffix}{end}.png" for end in ("", "_n", "_orm")[:len(maps)])
             for name, image in zip(names, maps):
-                Image.fromarray(image, "RGBA").save(GAME / name)
+                Image.fromarray(image, "RGBA").save(game / name)
             # Half size for rendering: a card covers few impostor pixels.
             small = Image.fromarray(colour, "RGBA")
             small = small.resize((small.width // 2, small.height // 2), Image.BOX)
@@ -285,7 +282,7 @@ def main():
                     lines.append(f"leaf {name} {rgb[0] / 255:.4f} {rgb[1] / 255:.4f} {rgb[2] / 255:.4f}")
                 header = True
             file = f"{species.name}_{seed}.gltf"
-            gltf_io.write_meshes(GAME / file, [
+            gltf_io.write_meshes(game / file, [
                 (f"{species.name}_{seed}_near", [p for p in (near_bark, near_leaves) if p is not None]),
                 (f"{species.name}_{seed}_mid", [p for p in (mid_bark, mid_leaves) if p is not None]),
             ])
@@ -311,10 +308,10 @@ def main():
                 for shown in (near, parts):
                     previews.append(render(shown, 0.6, 9.0, 20.0, 540, 600, light, leaf)[0])
             slot += 1
-    Image.fromarray((sheet * 255 + 0.5).astype(np.uint8), "RGBA").save(GAME / "impostors.png")
-    Image.fromarray((normals * 255 + 0.5).astype(np.uint8), "RGBA").save(GAME / "impostor_normals.png")
-    (GAME / "trees.txt").write_text("\n".join(lines) + "\n")
-    print(f"wrote {slot} variants -> {GAME} in {time.time() - began:.0f} s")
+    Image.fromarray((sheet * 255 + 0.5).astype(np.uint8), "RGBA").save(game / "impostors.png")
+    Image.fromarray((normals * 255 + 0.5).astype(np.uint8), "RGBA").save(game / "impostor_normals.png")
+    (game / "trees.txt").write_text("\n".join(lines) + "\n")
+    print(f"wrote {slot} variants -> {game} in {time.time() - began:.0f} s")
     if args.preview:
         bg = np.array([0.62, 0.72, 0.84], np.float32)
         tiles = [p[..., :3] * p[..., 3:] + bg * (1 - p[..., 3:]) for p in previews]

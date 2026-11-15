@@ -36,12 +36,8 @@ shutil.rmtree(Path(__file__).resolve().parent / "__pycache__", ignore_errors=Tru
 # blade_core / mesh_backend / gltf_io / generate_geometry — or any profile YAML —
 # then hitting "regenerate" in the studio picks up the change with no restart.
 # gltf_io lives in the shared assetgen/common/ module (used by every generator).
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
-
-import blade_core
-import gltf_io
-import mesh_backend
-import generate_geometry
+from common import gltf_io
+from foliage.scripts import blade_core, generate_geometry, mesh_backend
 
 # Dependency order: blade_core ← gltf_io, mesh_backend ← generate_geometry.
 _RELOADABLE = (blade_core, gltf_io, mesh_backend, generate_geometry)

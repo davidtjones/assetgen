@@ -15,12 +15,10 @@ STEP 2 will add tuft assembly to this same entrypoint.
 import sys
 from pathlib import Path
 
-# gltf_io lives in the shared assetgen/common/ module (used by every generator).
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "common"))
 
-from blade_core import ClusterParams, load_profile
-from mesh_backend import MeshParams, build_blade_mesh, build_tuft_mesh, canonical_blade
-from gltf_io import write_gltf
+from foliage.scripts.blade_core import ClusterParams, load_profile
+from foliage.scripts.mesh_backend import MeshParams, build_blade_mesh, build_tuft_mesh, canonical_blade
+from common.gltf_io import write_gltf
 
 # Tuft variants baked per profile, mirroring the raster path's sample seeds.
 TUFT_SEEDS = [0, 3, 7]

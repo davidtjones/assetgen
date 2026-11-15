@@ -53,10 +53,9 @@ OUT = ROOT / "out"
 WORKFLOWS = ROOT / "workflows"
 BLENDER_SCRIPTS = HERE / "blender"
 COMFY = REPO / "tools" / "ComfyUI"
-GAME_ASSETS = REPO.parent / "game3d" / "assets" / "creatures"
 
-sys.path.insert(0, str(REPO / "common"))
-from comfy_client import ComfyClient  # noqa: E402
+from common.comfy_client import ComfyClient
+from common.paths import game3d_assets
 
 KLEIN = {"unet": "flux-2-klein-base-4b.safetensors", "text_encoder": "qwen_3_4b.safetensors",
          "vae": "flux2-vae.safetensors", "steps": 20, "cfg": 5.0}
@@ -239,21 +238,22 @@ def stage_export(spec: dict, seed: int, force: bool = False) -> None:
     if not report["pass"] and not force:
         sys.exit(f"[export] {spec['name']}: last check failed; fix it or pass --force")
     rig = json.loads(need(d / "rig.json", "rig").read_text())
-    GAME_ASSETS.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(d / "creature.glb", GAME_ASSETS / f"{spec['name']}.glb")
+    game = game3d_assets("creatures")
+    game.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(d / "creature.glb", game / f"{spec['name']}.glb")
     write_manifest_entry(spec["name"], {
         "height": spec["height"],
         "length": round(rig["length"], 3),
         "walk_speed": round(spec["walk"]["stride"] / spec["walk"]["cycle"], 3),
         "walk_cycle": spec["walk"]["cycle"],
     })
-    print(f"[export] {spec['name']} -> {GAME_ASSETS / (spec['name'] + '.glb')}")
+    print(f"[export] {spec['name']} -> {game / (spec['name'] + '.glb')}")
 
 
 def write_manifest_entry(name: str, values: dict) -> None:
     """One line per species in the game's `creatures/creatures.txt`, which `src/creatures.rs`
     reads at startup: `<name> <name>.glb key=value ...`."""
-    path = GAME_ASSETS / "creatures.txt"
+    path = game3d_assets("creatures") / "creatures.txt"
     lines = {}
     if path.exists():
         for line in path.read_text().splitlines():

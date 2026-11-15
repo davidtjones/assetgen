@@ -36,8 +36,9 @@ import numpy as np
 import yaml
 from PIL import Image
 
-import preview
-import tex_core as tc
+from common.comfy_client import ComfyClient
+from textures.scripts import preview
+from textures.scripts import tex_core as tc
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
@@ -45,8 +46,6 @@ OUT = HERE.parent / "out" / "mat"
 WORKFLOWS = HERE.parent / "workflows"
 COMFY = REPO / "tools" / "ComfyUI"
 
-sys.path.insert(0, str(REPO / "common"))
-from comfy_client import ComfyClient  # noqa: E402
 
 # Appended to every subject: a texture is a surface seen square-on with no lighting of its own.
 FRAMING = "flat frontal view filling the whole frame edge to edge, even diffuse lighting, no cast shadows"
