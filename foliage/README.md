@@ -3,6 +3,12 @@
 Parametric grass generators. One **shared blade model** feeds two backends, so a
 given profile's billboard and its 3D mesh are the *same* plant by construction:
 
+The scripts live in `scripts/` and run as modules from the repo root through the
+pixi tasks below. `scripts/generate_plants.py` (`pixi run plants`) is separate
+from the blade model: it bakes the undergrowth plants (fern, flower, heather,
+scrub) straight into `../game3d/assets/meshes/plants/`; its docstring is its
+reference.
+
 ```
                     ┌──────────────────┐
    profiles/*.yaml ─►   blade_core.py   │  BladeParams, ClusterParams,
@@ -25,7 +31,7 @@ given profile's billboard and its 3D mesh are the *same* plant by construction:
 - **`mesh_backend.py`** — mesh backend → flat, tapering, drooping blade strips.
 - **`gltf_io.py`** (now shared, in `assetgen/common/`) — minimal dependency-free
   glTF 2.0 writer (loads in three.js and Bevy). Used by every generator (foliage,
-  rocks); the foliage scripts add `common/` to `sys.path` to import it.
+  rocks, trees); imported as `common.gltf_io`.
 - **`generate_geometry.py`** — mesh **bake** entrypoint. Writes one canonical
   blade + three tuft variants (seeds 0/3/7) per profile to `meshes/`.
 - **`serve.py`** — the **studio** dev server: serves the live editor and

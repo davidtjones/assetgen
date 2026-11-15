@@ -5,6 +5,9 @@ the rock carries no UVs or textures, because Bevy applies a world-space **tripla
 material (`assets/shaders/rock_triplanar.wgsl`). This mirrors the foliage generator:
 a Python model bakes assets, a three.js page previews them, Bevy loads them.
 
+The scripts live in `scripts/` and run as modules from the repo root through the
+pixi tasks below.
+
 ```text
    profiles/*.yaml ─►  rock_core.py  ─►  generate_rocks.py  ─►  meshes/*.gltf
                        (mesh model)      (bake entrypoint)      + manifest.json
