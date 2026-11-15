@@ -21,38 +21,50 @@ ComfyUI + SDXL for image work and dependency-free generators for geometry. It
 **bakes assets that the sibling `game3d` app consumes** - the app loads them from
 its own `../game3d/assets/` tree at runtime. Run pixi tasks from inside this repo.
 
+**How the code is wired.** Each generator is a directory (`foliage/`, `rocks/`,
+`trees/`, `textures/`, `creatures/`) with its scripts in `scripts/` and a
+`README.md` for someone who wants to run it. The repo root is the import root:
+pixi tasks run scripts as modules (`python -m trees.scripts.generate_trees`), and
+code imports shared pieces as packages (`from common.gltf_io import ...`,
+`from textures.scripts import tex_core`). Do not add `sys.path` hacks; run a script
+by hand as `pixi run python -m <generator>.scripts.<name>` from the repo root.
+Blender scripts (`creatures/scripts/blender/`, `trees/scripts/decimate_blender.py`)
+are the exception: Blender runs them by file path and they import only Blender's
+own modules.
+
+**Where the game is.** Everything written into `game3d` goes through
+`common/paths.py` (`game3d_dir()`, `game3d_assets(...)`). It defaults to
+`../game3d` and can be pointed elsewhere with `GAME3D_DIR=<path>`; it stops with an
+error if there is no `Cargo.toml` there, rather than writing assets nobody reads.
+
 ## Layout
 
 - `pixi.toml` - Python env (Python 3.12 + PyTorch CUDA) and tasks. See "Common commands" below. Its `[activation.env]` sets `SSL_CERT_FILE` to the env's own CA bundle: the env was created when this repo lived at `~/proj/asset-test`, the env's OpenSSL still has that prefix baked in, and without the override every HTTPS call from this Python fails with `CERTIFICATE_VERIFY_FAILED`. A `pixi reinstall` would fix the root cause but also drops the hand-installed ComfyUI dependencies.
-- `foliage/` - grass silhouette/geometry generators (Python), three.js preview/studio, profiles, presets, workflows. Outputs baked glTF tufts into `foliage/meshes/`.
-- `rocks/` - procedural rock geometry generator (Python/numpy), YAML profiles, three.js preview. Outputs baked glTF rocks into `rocks/meshes/`, which are then copied into the app at `../game3d/assets/meshes/rocks/`. Geometry only; the `rocks` Bevy module textures them with a triplanar material.
+- `foliage/` - grass silhouette/geometry generators (Python), three.js preview/studio, profiles, presets, workflows. Outputs baked glTF tufts into `foliage/meshes/`; `scripts/generate_plants.py` bakes the undergrowth plants into `../game3d/assets/meshes/plants/`.
+- `rocks/` - procedural rock geometry generator (Python/numpy), YAML profiles, three.js preview. Outputs baked glTF rocks and their `manifest.json` (read by the preview) into `rocks/meshes/` (gitignored), which are then copied into the app at `../game3d/assets/meshes/rocks/`. Geometry only; the `rocks` Bevy module textures them with a triplanar material.
 - `trees/` - tree generator (Python/numpy). `scripts/tree_core.py` grows a skeleton per species from a table of numbers (`Habit`) and skins it as two meshes, bark and foliage, at two levels of detail; `scripts/tree_textures.py` makes the bark (drawn, or taken from a `textures/` material named in its `GENERATED` table, with an optional mossy overlay from `MOSSY`) and the foliage cards, whose colour is relative to a leaf colour the game supplies; `scripts/generate_trees.py` bakes meshes, textures, impostor atlases and the manifest straight into `../game3d/assets/trees/`. Each file's docstring is its reference; the manifest format is in `generate_trees.py`. Look at the result with the game's asset viewer (`cargo run --release --bin viewer` in `../game3d`).
-- `common/` - shared Python across generators: `gltf_io.py`, the dependency-free glTF 2.0 writer used by foliage, rocks and trees (`write_meshes` for several meshes and primitives in one file); `comfy_client.py`, the standard-library ComfyUI HTTP client used by `textures/` and `creatures/` (it validates a workflow against the server's nodes before queueing, and fails when ComfyUI accepts a prompt with node errors, which it would otherwise run in part).
+- `common/` - shared Python across generators: `paths.py`, where the sibling `game3d` repo is (see above); `gltf_io.py`, the dependency-free glTF 2.0 writer used by foliage, rocks and trees (`write_meshes` for several meshes and primitives in one file); `comfy_client.py`, the standard-library ComfyUI HTTP client used by `textures/` and `creatures/` (it validates a workflow against the server's nodes before queueing, and fails when ComfyUI accepts a prompt with node errors, which it would otherwise run in part).
 - `creatures/` - the creature pipeline: one spec in `specs/<name>.yaml` -> a rigged, animated, textured glTF in `../game3d/assets/creatures/`. FLUX.2 klein concept, TRELLIS.2 mesh with baked PBR maps (both through ComfyUI, `workflows/`), then Blender scripts (`scripts/blender/`) that fit a quadruped skeleton from the mesh's shape, skin it, key in-place `idle` and `walk` loops, and check the result against the spec (geometry, weights, deformation, foot contact and slip) with a contact sheet. `scripts/creature.py`'s docstring is the reference; outputs go to `creatures/out/<name>/` (gitignored). The game's side is `../game3d/src/creatures.rs`.
 - `textures/` - material generation: prompt library, ComfyUI workflows, our ComfyUI nodes (`comfy_nodes/`, symlinked into `tools/ComfyUI/custom_nodes/`), and the scripts that generate candidates, preview them lit, and bake the terrain layers. The CHORD weights (`tools/ComfyUI/models/checkpoints/chord_v1.safetensors`) are under a research-only licence.
 - `tools/ComfyUI/` - local ComfyUI install (v0.45.3) for image and 3D generation: FLUX.2 klein, SDXL 1.0 base + ControlNet Union Promax, CHORD, native TRELLIS.2 (Comfy-Org's repackaged weights in `models/diffusion_models`, `vae`, `clip_vision`), and our custom `asset_test_utils` nodes. It needs torch 2.7 or newer, hence the cu130 torch in `pixi.toml`. Started with `--disable-dynamic-vram`: its dynamic VRAM allocator segfaulted freeing a buffer after a CHORD run. **gitignored.**
 - `tools/meshflow/` - MeshFlow (Meta's learned retopology model) with its own venv, installed but without weights: the Hugging Face repo is gated behind a noncommercial research licence that needs David's account. Nothing in this repo uses it since the gear pipeline was removed. **gitignored** (via `tools/.gitignore`).
 
-Each experiment (foliage, rocks, textures) is split by language: its **generator**
+Each generator (foliage, rocks, trees, creatures) is split by language: its **generator**
 lives here under `assetgen/<name>/`, and if it renders in-app its **Bevy plugin**
 is `../game3d/src/<name>.rs`.
 
 The learned-terrain work left this repo long ago and is not part of the asset
-pipeline. It now lives under `../terrain/`: `../terrain/worldseed/` is a terrain
-generator and `../terrain/terrain-diffusion/` is the upstream model clone it draws
-weights from. The older `terrain-gen/` reproduction repo that used to sit beside
-this one was retired on 2026-08-30 and is no longer on disk; its history is in the
-journal archive. See `../AGENTS.md` for the current repo map.
+pipeline. See `../AGENTS.md` for the current repo map.
 
 ## Documentation
 
 The cross-repo documentation protocol lives in `../AGENTS.md`. **Reference docs
 travel with their code** - this repo's:
 
-- `foliage/scripts/README.md` - grass generator reference (YAML profile schema, how to add profiles).
+- `<generator>/README.md` - one per generator (`foliage/`, `rocks/`, `trees/`, `textures/`, `creatures/`): what it makes, how to run it, and which script does what. `foliage/README.md` and `rocks/README.md` also hold the YAML profile schemas.
 - `foliage/workflows/README.md` - billboard ComfyUI workflow reference (node graph, prompt guidance).
-- `rocks/scripts/README.md` - rock generator reference (YAML profile schema).
 - `textures/workflows/README.md` - material ComfyUI workflow reference: the klein and CHORD workflows, our nodes, and what is done to CHORD's maps.
+- Script docstrings - the CLI reference for each entry point (`gen_material.py`, `creature.py`, `generate_trees.py`, ...).
 
 **This repo has no status doc.** The workspace is a research workspace with no
 fixed deliverable; there is no `MVP.md` or `ROADMAP.md` to consult, and earlier
@@ -62,14 +74,14 @@ versions of this file pointed at both before they were removed. The per-generato
 
 **When you change X, update Y** (in addition to the workspace-wide rules in `../AGENTS.md`):
 
-- A generator script, its CLI, or a YAML schema -> that script's `README.md`.
+- A generator script, its CLI, or a YAML schema -> that generator's `README.md` (and the script's docstring).
 - A ComfyUI workflow graph or custom node -> that workflow's `README.md`.
 - Repo layout, commands, or dependencies -> this file (`AGENTS.md`).
 - Finished a chunk of work, ran an experiment, or made a non-obvious decision -> add a journal entry (the `journal` skill).
 
 ## Common commands
 
-**Python / pixi tasks** (run from inside this repo):
+**Python / pixi tasks** (run from inside this repo; pixi runs them from the repo root). Tasks that write into the game honour `GAME3D_DIR`:
 
 - `pixi run silhouettes` - regenerate all grass silhouettes from `foliage/profiles/*.yaml`
 - `pixi run blades` - regenerate baked glTF grass tufts into `foliage/meshes/`
