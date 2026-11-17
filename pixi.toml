@@ -42,9 +42,3 @@ matplotlib = "*"
 torch = { version = ">=2.14", index = "https://download.pytorch.org/whl/cu130" }
 torchvision = { version = "*", index = "https://download.pytorch.org/whl/cu130" }
 torchaudio = { version = "*", index = "https://download.pytorch.org/whl/cu130" }
-
-[activation.env]
-# The env's OpenSSL has the prefix it was installed under baked in. The repo moved from
-# ~/proj/asset-test, so that path is stale and HTTPS from this Python fails with
-# CERTIFICATE_VERIFY_FAILED. Point it at the bundle the env actually ships.
-SSL_CERT_FILE = "$PIXI_PROJECT_ROOT/.pixi/envs/default/ssl/cacert.pem"
