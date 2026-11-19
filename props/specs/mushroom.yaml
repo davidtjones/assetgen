@@ -1,0 +1,14 @@
+# A plain wild mushroom: what boar forage for. One stem and one cap, so the game can place
+# them singly or in small clumps.
+subject: >-
+  a single common wild mushroom, smooth light brown rounded cap, pale cream gills under the cap,
+  short thick white stem, natural forest mushroom
+# Height from the ground to the top of the cap, in metres.
+height: 0.12
+# Triangle budget for the game mesh; detail goes in the baked maps. TRELLIS's decimator
+# stops at about 1400 on a mesh this small (asked for 600, got 1440), and decimating
+# further in Blender tears the mesh along its UV seams, so the budget is what it gives.
+tris: 1500
+# Baked map size in pixels. A 12 cm object needs little.
+texture_size: 512
+seed: 1

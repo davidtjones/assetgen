@@ -18,12 +18,17 @@
 3. **Skin** with Blender's heat weights. If heat fails on some vertices (it does on open or
    self-intersecting meshes) the weights are solved on a voxel-remeshed copy and transferred
    back. At most four influences per vertex, normalised.
-4. **Animate** two in-place loops at 30 fps, `idle` and `walk`. The walk is a lateral-sequence
-   gait (hind left, fore left, hind right, fore right a quarter cycle apart): each ankle
-   follows a stance-then-swing path in the body frame, and the legs are posed by an analytic
-   two-bone IK each frame, so a planted foot moves backwards at exactly `stride / cycle` and
-   the game can cancel it by moving the creature forwards at that speed.
-5. **Export** glTF with the skin and both clips (one NLA track each), and `rig.json` with the
+4. **Animate** in-place loops at 60 fps: `idle`, and one per gait the spec gives (`walk`, and
+   optionally `run` and `sprint`). Each gait is a footfall pattern from [`GAITS`]: `walk` a
+   lateral-sequence walk (hind left, fore left, hind right, fore right a quarter cycle apart,
+   each foot down 65% of the time), `run` a trot (diagonal pairs together, 40% down), and
+   `sprint` a transverse gallop (hind pair then fore pair, 22% down, with a moment in the air).
+   Each ankle follows a stance-then-swing path in the body frame, and the legs are posed by
+   an analytic two-bone IK each frame, so a planted foot moves backwards at exactly
+   `stride / cycle` and the game can cancel it by moving the creature forwards at that speed.
+   A leg's reach is short, so a faster gait gets most of its speed from a quicker cycle and
+   less time on the ground rather than from a longer reach.
+5. **Export** glTF with the skin and every clip (one NLA track each), and `rig.json` with the
    fitted joints, sizes and clip lengths for the check stage and the manifest.
 """
 
@@ -36,10 +41,21 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Quaternion, Vector
 
-FPS = 30
-DUTY = 0.65          # fraction of the walk cycle each foot is on the ground
+FPS = 60             # a 0.36 s gallop needs more than 11 keys to keep a planted foot planted
 LEGS = ["fl", "fr", "hl", "hr"]
-PHASE = {"hl": 0.0, "fl": 0.25, "hr": 0.5, "fr": 0.75}   # lateral-sequence walk
+# Footfall pattern per gait: `duty` is the fraction of the cycle each foot is on the ground,
+# `phase` when in the cycle each foot lands. `bob` is how far the body rises and falls (a
+# fraction of the height, only ever down from rest, where the legs are nearly straight) and how
+# many times per cycle; `flex` how far the spine bends and
+# straightens (radians, once per cycle: the gallop's gather and stretch).
+GAITS = {
+    "walk": {"duty": 0.65, "phase": {"hl": 0.0, "fl": 0.25, "hr": 0.5, "fr": 0.75},
+             "bob": (0.012, 2), "flex": 0.0, "sway": 1.0},
+    "run": {"duty": 0.40, "phase": {"hl": 0.0, "fr": 0.0, "hr": 0.5, "fl": 0.5},
+            "bob": (0.02, 2), "flex": 0.0, "sway": 0.5},
+    "sprint": {"duty": 0.22, "phase": {"hl": 0.0, "hr": 0.1, "fl": 0.45, "fr": 0.55},
+               "bob": (0.025, 1), "flex": 0.07, "sway": 0.3},
+}
 
 
 # -- scene and mesh --------------------------------------------------------------------------
@@ -480,13 +496,15 @@ def smoothstep(t):
     return t * t * (3 - 2 * t)
 
 
-def foot_offset(phase, stride_body, lift):
-    """Ankle offset (dy, dz) in the body frame at gait phase 0..1. Stance: on the ground,
-    moving back (+Y) at constant speed. Swing: lifted and carried forward."""
-    if phase < DUTY:
-        return -stride_body / 2 + stride_body * (phase / DUTY), 0.0
-    t = (phase - DUTY) / (1 - DUTY)
-    return stride_body / 2 - stride_body * smoothstep(t), lift * math.sin(math.pi * t)
+def foot_offset(phase, stride_body, lift, duty):
+    """Ankle offset (dy, dz) in the body frame at gait phase 0..1. Stance (the first `duty` of
+    the cycle): on the ground, moving back (+Y) at constant speed. Swing: lifted and carried
+    forward."""
+    if phase < duty:
+        return -stride_body / 2 + stride_body * (phase / duty), 0.0
+    t = (phase - duty) / (1 - duty)
+    # sqrt: the foot leaves the ground quickly rather than skimming it at speed
+    return stride_body / 2 - stride_body * smoothstep(t), lift * math.sqrt(math.sin(math.pi * t))
 
 
 class Poser:
@@ -603,9 +621,6 @@ def animate(arm, fit, spec, tail_names):
         arm.animation_data.action = None
         clips[name] = {"frames": n, "seconds": n / FPS}
 
-    walk = spec["walk"]
-    stride_body = walk["stride"] * DUTY     # how far a planted foot travels in the body frame
-    lift = walk["lift"]
     tau = 2 * math.pi
 
     root_rest = arm.data.bones["root"].matrix_local.to_3x3()
@@ -614,18 +629,31 @@ def animate(arm, fit, spec, tail_names):
         """Move the whole body up by dz (world). The root bone's local axes are not world axes."""
         poser.pb["root"].location = root_rest.inverted() @ Vector((0, 0, dz))
 
-    def walk_pose(t):
-        lift_root(-0.012 * h * math.cos(2 * tau * t))    # bob twice per cycle
-        poser.rot("hips", z=0.05 * math.sin(tau * t))
-        poser.rot("spine_1", z=-0.025 * math.sin(tau * t))
-        poser.rot("chest", z=-0.04 * math.sin(tau * t))
-        poser.rot("neck", x=0.04 * math.cos(2 * tau * t))
-        poser.rot("head", x=-0.05 * math.cos(2 * tau * t), z=0.03 * math.sin(tau * t))
-        for i, n in enumerate(tail_names):
-            poser.rot(n, z=0.12 * math.sin(tau * t - 0.6 * (i + 1)), x=0.03 * math.cos(2 * tau * t))
-        for k in LEGS:
-            dy, dz = foot_offset((t + PHASE[k]) % 1.0, stride_body, lift)
-            poser.solve_leg(k, poser.rest_ankle[k] + Vector((0, dy, dz)))
+    def gait_pose(name, gait):
+        g = GAITS[name]
+        duty = g["duty"]
+        stride_body = gait["stride"] * duty     # how far a planted foot travels in the body frame
+        lift = gait["lift"]
+        bob, bobs = g["bob"]
+        sway, flex = g["sway"], g["flex"]
+
+        def pose(t):
+            # the legs are nearly straight at rest, so the body only ever dips below it
+            lift_root(-h * bob * (0.5 + 0.5 * math.cos(bobs * tau * t)))
+            # the gallop gathers (spine arched, hind legs under) and stretches once a cycle
+            bend = flex * math.sin(tau * t)
+            poser.rot("hips", x=bend, z=0.05 * sway * math.sin(tau * t))
+            poser.rot("spine_1", x=-0.5 * bend, z=-0.025 * sway * math.sin(tau * t))
+            poser.rot("chest", x=-0.5 * bend, z=-0.04 * sway * math.sin(tau * t))
+            poser.rot("neck", x=0.04 * math.cos(2 * tau * t) + 0.5 * bend)
+            poser.rot("head", x=-0.05 * math.cos(2 * tau * t), z=0.03 * sway * math.sin(tau * t))
+            for i, n in enumerate(tail_names):
+                poser.rot(n, z=0.12 * sway * math.sin(tau * t - 0.6 * (i + 1)),
+                          x=0.03 * math.cos(2 * tau * t) - 0.15 * (1 - sway))
+            for k in LEGS:
+                dy, dz = foot_offset((t + g["phase"][k]) % 1.0, stride_body, lift, duty)
+                poser.solve_leg(k, poser.rest_ankle[k] + Vector((0, dy, dz)))
+        return pose
 
     def idle_pose(t):
         lift_root(-0.006 * h * (1 - math.cos(2 * tau * t)) / 2)   # breathing
@@ -638,7 +666,9 @@ def animate(arm, fit, spec, tail_names):
             poser.solve_leg(k, poser.rest_ankle[k].copy())
 
     clip("idle", 4.0, idle_pose)
-    clip("walk", walk["cycle"], walk_pose)
+    for name in GAITS:
+        if name in spec:
+            clip(name, spec[name]["cycle"], gait_pose(name, spec[name]))
     for t in arm.animation_data.nla_tracks:
         t.mute = False
     return clips
@@ -670,7 +700,7 @@ def main():
         "placed": placed, "belly": fit["belly"], "length": fit["length"], "tris": tris,
         "bones": [b.name for b in arm.data.bones], "joints": joints,
         "legs": fit["leg_info"], "skin": skinned, "clips": clips,
-        "walk_speed": spec["walk"]["stride"] / spec["walk"]["cycle"],
+        "speeds": {name: spec[name]["stride"] / spec[name]["cycle"] for name in GAITS if name in spec},
     }
     json.dump(report, open(out_json, "w"), indent=2)
     print(f"[rig] {out_glb}: {tris} tris, {len(report['bones'])} bones, skin {skinned}, clips {list(clips)}")

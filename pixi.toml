@@ -32,6 +32,8 @@ preview-rocks = { cmd = "python -m http.server 8001", cwd = "rocks/preview" }
 studio = "python -m foliage.scripts.serve"
 # Creatures: concept -> TRELLIS.2 mesh -> rig + walk/idle -> check -> game. `pixi run creature --help`.
 creature = "python -m creatures.scripts.creature"
+# Props: concept -> TRELLIS.2 mesh -> frame (scale, ground, check) -> game. `pixi run prop --help`.
+prop = "python -m props.scripts.prop"
 
 [dependencies]
 python = "3.12.*"

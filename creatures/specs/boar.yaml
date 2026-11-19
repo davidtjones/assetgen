@@ -9,6 +9,12 @@ height: 0.95
 tail_bones: 2
 # Triangle budget for the game mesh.
 tris: 8000
-# Walk: one gait cycle in seconds and the step length of one foot, in metres.
-walk: {cycle: 1.0, stride: 0.7, lift: 0.08}
+# Gaits: one cycle in seconds, how far one foot moves per cycle and how high it lifts, in
+# metres. Speed is stride / cycle: walk 1.0 m/s, run (a trot) 2.5 m/s, sprint (a gallop)
+# 6 m/s. A leg reaches about 0.23 m fore and aft of the hip, so faster gaits come from a
+# quicker cycle (and, in the rig stage, less time with each foot down), not a longer reach.
+# Cycles are whole frames at the rig's 60 fps, so a clip lasts exactly what the manifest says.
+walk: {cycle: 0.7, stride: 0.7, lift: 0.08}
+run: {cycle: 0.5, stride: 1.25, lift: 0.10}
+sprint: {cycle: 0.35, stride: 2.1, lift: 0.12}
 seed: 3

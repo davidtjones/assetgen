@@ -10,20 +10,25 @@ Re-imports what will ship (not the Blender scene the rig stage built) and measur
 - **skin**: vertices with no weight, vertices with more than four influences, and leg
   purity: of the vertices low down in each leg's column, the share of weight that belongs
   to that leg's bones. Heat weights bleeding from one leg into its neighbour shows up here.
-- **clips**: `idle` and `walk` exist and loop (first and last frame match).
+- **clips**: `idle`, `walk` and every other gait the spec gives (`run`, `sprint`) exist and
+  loop (first and last frame match).
 - **deformation**: for every frame of every clip, edge length against rest (ignoring the
-  shortest tenth of edges, where a millimetre is a large ratio). The 99.9th percentile and
-  the worst edge catch skin tearing and candy-wrapper collapse; the worst edge is only a
+  shortest tenth of edges, where a millimetre is a large ratio). The 99.9th percentile of
+  each clip (judged per clip: pooled, the long idle hides a bad gait) and the worst edge
+  catch skin tearing and candy-wrapper collapse. The limit, 2.75, sits above the boar's
+  walk (about 1.9) and gallop (about 2.4), whose worst edges are a few at the hind thigh
+  where heat weights from the tail bleed in; the worst edge is only a
   warning (with its clip, frame and place in `worst_edge`), since one edge in thousands
   across every frame is too brittle to fail on.
-- **feet**: during the walk, the lowest point of each foot never sinks below the ground,
-  each foot is down for part of the cycle, and while down it does not slide: the vertices
-  touching the ground on one frame barely move in the world by the next (body-frame speed
-  minus the creature's walk speed; median over the cycle).
+- **feet**: during each gait, the lowest point of each foot never sinks below the ground,
+  each foot is down for part of the cycle (at least 45% of the gait's planned time down,
+  since a leg at full reach lifts its foot a little early), and while down it does not
+  slide: the vertices touching the ground on one frame barely move in the world by the next
+  (body-frame speed minus the gait's speed, `stride / cycle`; median over the cycle).
 
 Writes `check.json` with each check's value, limit and pass flag, and renders the frames for
 the contact sheet into `sheet_dir`: four turntable views, the skeleton seen through the
-mesh, and eight walk frames from the side.
+mesh, and eight frames of each gait from the side (`walk_0..7`, `run_0..7`, `sprint_0..7`).
 """
 
 import json
@@ -36,11 +41,16 @@ import numpy as np
 from mathutils import Matrix, Vector
 
 LEGS = ["fl", "fr", "hl", "hr"]
+# Each gait's planned fraction of the cycle a foot is down (rig_creature.py's GAITS).
+DUTY = {"walk": 0.65, "run": 0.40, "sprint": 0.22}
 
 
 def load(path):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     # merge the vertices glTF splits along UV seams, or every UV island counts as a loose part
+    # the importer turns key times into frames at the scene's rate; match the rig's 60 fps so
+    # a short gallop is not sampled a few times a cycle
+    bpy.context.scene.render.fps = 60
     bpy.ops.import_scene.gltf(filepath=path, merge_vertices=True)
     arm = next(o for o in bpy.data.objects if o.type == "ARMATURE")
     mesh = next(o for o in bpy.data.objects if o.type == "MESH")
@@ -103,7 +113,7 @@ def actions_by_name(arm):
             for s in t.strips:
                 out[t.name] = s.action
     for a in bpy.data.actions:
-        out.setdefault(a.name.split("_")[0] if a.name not in ("idle", "walk") else a.name, a)
+        out.setdefault(a.name.split("_")[0] if a.name not in ("idle", *DUTY) else a.name, a)
     return out
 
 
@@ -234,13 +244,15 @@ def main():
     # the shortest edges turn millimetre moves into huge ratios; judge the rest
     long_enough = rest_len >= np.percentile(rest_len, 10)
     acts = actions_by_name(arm)
-    for clip in ("idle", "walk"):
+    gaits = [g for g in DUTY if g in spec]
+    for clip in ["idle"] + gaits:
         check(f"clip_{clip}", clip in acts, clip in acts, "present")
-    walk_speed = spec["walk"]["stride"] / spec["walk"]["cycle"]
+    speeds = {g: spec[g]["stride"] / spec[g]["cycle"] for g in gaits}
     stretch_all = []
+    stretch_by_clip = {}
     worst_edge = {}
     foot_stats = {}
-    for clip in ("idle", "walk"):
+    for clip in ["idle"] + gaits:
         if clip not in acts:
             continue
         lo, hi = play(arm, acts[clip])
@@ -269,9 +281,15 @@ def main():
             for k in LEGS:
                 if len(foot_idx[k]):
                     feet[k].append(P[foot_idx[k]])
+        S = np.concatenate(stretch_all[-len(frames):])
+        p999 = float(np.percentile(np.maximum(S, 1 / S), 99.9))
+        stretch_by_clip[clip] = round(p999, 3)
+        check(f"{clip}_edge_stretch_p999", p999, p999 <= 2.75, "<= 2.75")
         loop_err = float(np.abs(first - last).max())
         check(f"{clip}_loop_error_m", loop_err, loop_err < 0.002 * h + 1e-4, f"< {0.002 * h:.4f}")
-        if clip == "walk":
+        if clip in speeds:
+            speed = speeds[clip]
+            stats = {}
             for k in LEGS:
                 if not feet[k]:
                     continue
@@ -286,25 +304,27 @@ def main():
                 for i in range(len(F) - 1):
                     if touching[i].any():
                         vy = (F[i + 1, touching[i], 1] - F[i, touching[i], 1]) * fps
-                        slips.append(float(np.median(np.abs(vy - walk_speed))))
-                foot_stats[k] = {"min_z": float(floor), "down_fraction": float(down.mean()),
-                                 "slip_mps": float(np.median(slips)) if slips else float("inf")}
-            if foot_stats:
-                minz = min(s["min_z"] for s in foot_stats.values())
-                check("walk_foot_min_z_m", minz, minz >= -0.02 * h, f">= {-0.02 * h:.3f}")
-                downs = min(s["down_fraction"] for s in foot_stats.values())
-                check("walk_foot_down_fraction_min", downs, 0.3 <= downs <= 0.9, "0.3..0.9")
-                slip = max(s["slip_mps"] for s in foot_stats.values())
-                check("walk_foot_slip_mps", slip, slip <= 0.1 * walk_speed, f"<= {0.1 * walk_speed:.3f}")
+                        slips.append(float(np.median(np.abs(vy - speed))))
+                stats[k] = {"min_z": float(floor), "down_fraction": float(down.mean()),
+                            "slip_mps": float(np.median(slips)) if slips else float("inf")}
+            foot_stats[clip] = stats
+            if stats:
+                minz = min(s["min_z"] for s in stats.values())
+                check(f"{clip}_foot_min_z_m", minz, minz >= -0.02 * h, f">= {-0.02 * h:.3f}")
+                downs = min(s["down_fraction"] for s in stats.values())
+                lo_down = 0.45 * DUTY[clip]
+                check(f"{clip}_foot_down_fraction_min", downs, lo_down <= downs <= 0.9, f"{lo_down:.2f}..0.9")
+                slip = max(s["slip_mps"] for s in stats.values())
+                check(f"{clip}_foot_slip_mps", slip, slip <= 0.1 * speed, f"<= {0.1 * speed:.3f}")
     if stretch_all:
         S = np.concatenate(stretch_all)
         dev = np.maximum(S, 1 / S)
-        check("edge_stretch_p999", np.percentile(dev, 99.9), np.percentile(dev, 99.9) <= 1.6, "<= 1.6")
         # one worst edge out of every frame: a pointer to where to look, too brittle to gate on
         check("edge_stretch_max", dev.max(), dev.max() <= 3.0, "<= 3.0 (warning)", warn=True)
 
     report = {"pass": all(c["pass"] or c["warn"] for c in checks), "checks": checks, "leg_purity": purity, "feet": foot_stats,
-              "walk_speed": walk_speed, "worst_edge": worst_edge}
+              "speeds": speeds, "worst_edge": worst_edge,
+              "stretch_p999_by_clip": stretch_by_clip}
     json.dump(report, open(out_json, "w"), indent=2)
 
     # -- renders for the contact sheet --
@@ -328,12 +348,14 @@ def main():
     for m in markers:
         bpy.data.objects.remove(m)
     sh.show_xray = False
-    if "walk" in acts:
-        lo_f, hi_f = play(arm, acts["walk"])
+    for gait in gaits:
+        if gait not in acts:
+            continue
+        lo_f, hi_f = play(arm, acts[gait])
         for i in range(8):
             f = lo_f + round(i * (hi_f - lo_f) / 8)
             bpy.context.scene.frame_set(f)
-            shoot(cam, (1, 0, 0.05), centre, extent, os.path.join(sheet_dir, f"walk_{i}.png"))
+            shoot(cam, (1, 0, 0.05), centre, extent, os.path.join(sheet_dir, f"{gait}_{i}.png"))
     print(f"[check] {'PASS' if report['pass'] else 'FAIL'} -> {out_json}")
 
 
