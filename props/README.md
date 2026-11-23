@@ -2,7 +2,9 @@
 
 One spec in `specs/<name>.yaml` becomes a static, textured glTF that the game
 places in the world (`../game3d/src/world/food.rs` for food plants). A prop is
-anything that does not move on its own: today a mushroom.
+anything that does not move on its own: today a mushroom. A spec can also be a
+**kit**: a set of building pieces made by code that snap together on a grid
+(see "Kits" below).
 
 ```text
 pixi run prop all mushroom             # every stage
@@ -34,3 +36,57 @@ seed: 1
 
 `avoid` adds to the negative prompt. If a concept comes out wrong, try another
 seed with `--seed N` before changing the subject.
+
+## Kits
+
+A kit is one style of building pieces - walls, towers, a gate, stairs, floors,
+roofs - that a builder (an agent or a player) snaps together on a structure's
+grid. Pieces are made by code, not drawn and meshed, so they fit the grid
+exactly. Today there is one: `fort`, twelve stone pieces.
+
+```text
+pixi run prop all fort                 # build, frame, export: a few seconds
+```
+
+1. `build` (`scripts/kit.py`) makes every piece and the spec's test arrangement
+   as glTF under `out/<name>/`.
+2. `frame` checks each piece and the arrangement, renders them with Blender
+   (`scripts/blender/render_kit.py`) and writes `out/<name>/sheet.png`: the
+   pieces in a row above the arrangement from outside, inside and above.
+3. `export` writes the pieces and `kit.json` into `../game3d/assets/kits/<name>/`.
+   The game's asset viewer shows each piece and builds the test arrangement with
+   the game's own placement (`../game3d/src/world/kit.rs`).
+
+**The grid.** Every piece fills whole cells of a grid of `cell`-metre cubes
+(2 m). It is placed at a cell with a turn of 0-3 quarter turns about up. Its
+outer side, where battlements stand and a gate opens to, is -z before turning.
+
+**What is checked.** Each piece stays inside its cells; each side it says is
+solid is closed over every cell; each passage (a gateway, a door) is clear; each
+walk surface (a wall-walk, a tread) is at the height it says with 2 m of
+headroom. In the test arrangement no two pieces share a cell, no passage opens
+onto a solid face, and no two different partial profiles meet. `kit.json`
+records each piece's cells and what each of its outward faces is, so a builder
+can tell what fits next to what without looking.
+
+```yaml
+kind: kit
+cell: 2.0                       # metres per grid cell
+colors:                         # sRGB per surface kind
+  stone: [128, 124, 116]
+  wood: [112, 80, 52]
+  roof: [74, 80, 92]
+test:                           # [piece, [i, j, k], turn]
+  - [tower_base, [0, 0, 0], 2]
+  - [wall, [3, 0, 0], 0]
+```
+
+`scripts/kit.py`'s docstring is the reference for the grid, turns, the manifest
+and the checks; the pieces themselves are in `build_pieces`.
+
+**Limits.** Pieces are flat-coloured boxes and extrusions, one material per
+surface kind; the game makes its own material per kind, so they can be dressed
+in PBR materials later. Joins are checked by face kind, not by drawing the seam,
+so two pieces whose faces both say `solid` are trusted to meet. A kit is one
+fixed set of pieces in code; there is no generated (concept and mesh) path for
+pieces yet.

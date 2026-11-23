@@ -186,8 +186,11 @@ def write_meshes(path: str | Path, meshes: list[tuple[str, list[dict]]]) -> None
 
     For assets whose parts take different materials in the engine (a tree's
     bark and its leaves) or that come at several levels of detail: the engine
-    addresses them as mesh `i`, primitive `j`. No materials are written; the
-    engine supplies them.
+    addresses them as mesh `i`, primitive `j`. By default no materials are
+    written and the engine supplies them. A primitive may instead carry a
+    `material`: a dict with `name`, `color` (linear RGB or RGBA) and optionally
+    `roughness` (default 1), written as a plain PBR material (kit pieces).
+    Primitives naming the same material share one.
     """
     import numpy as np
 
@@ -207,6 +210,17 @@ def write_meshes(path: str | Path, meshes: list[tuple[str, list[dict]]]) -> None
         accessors.append(accessor)
         return len(accessors) - 1
 
+    materials, material_index = [], {}
+
+    def material(spec: dict) -> int:
+        if spec["name"] not in material_index:
+            color = list(spec["color"]) + [1.0] * (4 - len(spec["color"]))
+            materials.append({"name": spec["name"], "pbrMetallicRoughness": {
+                "baseColorFactor": color, "metallicFactor": 0.0,
+                "roughnessFactor": float(spec.get("roughness", 1.0))}})
+            material_index[spec["name"]] = len(materials) - 1
+        return material_index[spec["name"]]
+
     for name, primitives in meshes:
         entries = []
         for prim in primitives:
@@ -218,7 +232,10 @@ def write_meshes(path: str | Path, meshes: list[tuple[str, list[dict]]]) -> None
                     assert len(prim[key]) == len(prim["positions"]), f"{key} length must match positions"
                     attributes[label] = add(prim[key], "<f4", kind, _ARRAY_BUFFER)
             indices = add(np.asarray(prim["indices"]).ravel(), "<u4", "SCALAR", _ELEMENT_ARRAY_BUFFER)
-            entries.append({"attributes": attributes, "indices": indices, "mode": 4})
+            entry = {"attributes": attributes, "indices": indices, "mode": 4}
+            if prim.get("material") is not None:
+                entry["material"] = material(prim["material"])
+            entries.append(entry)
         out.append({"name": name, "primitives": entries})
 
     uri = "data:application/octet-stream;base64," + base64.b64encode(bytes(buffer)).decode("ascii")
@@ -232,4 +249,6 @@ def write_meshes(path: str | Path, meshes: list[tuple[str, list[dict]]]) -> None
         "bufferViews": views,
         "accessors": accessors,
     }
+    if materials:
+        gltf["materials"] = materials
     Path(path).write_text(dumps(gltf))

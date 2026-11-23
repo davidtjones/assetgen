@@ -22,6 +22,20 @@ stage can be rerun alone:
 Spec keys: `subject` (what to draw), `height` (metres, ground to top), `tris` (game mesh
 budget), `texture_size` (baked map size, default 1024), `seed`, and optionally `avoid` (extra
 negative prompt).
+
+**Kits.** A spec with `kind: kit` is a set of building pieces made by code on a grid instead of
+one generated object (`kit.py` holds the pieces, the grid and the checks). Its stages are:
+
+1. `build` - make every piece -> `pieces/<piece>.gltf` and `pieces.json`, and the spec's test
+   arrangement -> `test.gltf`.
+2. `frame` - check every piece and the test arrangement -> `frame.json`; render the pieces in a
+   row and the arrangement from three sides with Blender (`blender/render_kit.py`) ->
+   `sheet.png`. Exits non-zero when a check fails.
+3. `export` - copy the pieces into `../game3d/assets/kits/<name>/` and write `kit.json` there:
+   the grid, every piece's cells and faces, and the test arrangement.
+
+Kit spec keys: `cell` (metres per grid cell), `colors` (sRGB per surface kind: `stone`,
+`wood`, `roof`) and `test` (a list of `[piece, [i, j, k], turn]`).
 """
 
 from __future__ import annotations
@@ -38,6 +52,7 @@ import yaml
 
 from common.image_to_mesh import draw_concept, make_mesh
 from common.paths import game3d_assets
+from props.scripts import kit
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -155,12 +170,130 @@ def write_manifest_entry(name: str, values: dict) -> None:
     path.write_text("\n".join([header] + [lines[k] for k in sorted(lines)]) + "\n")
 
 
+# --- kits -----------------------------------------------------------------------------------
+
+def stage_build(spec: dict, seed: int) -> None:
+    d = out_dir(spec["name"])
+    C = float(spec["cell"])
+    pieces = kit.build_pieces(C)
+    (d / "pieces").mkdir(exist_ok=True)
+    for old in (d / "pieces").glob("*.gltf"):
+        old.unlink()
+    for name, p in pieces.items():
+        kit.write_piece(d / "pieces" / f"{name}.gltf", p.mesh, spec["colors"])
+    (d / "pieces.json").write_text(json.dumps({n: kit.piece_meta(p) for n, p in pieces.items()}, indent=1) + "\n")
+    kit.write_piece(d / "test.gltf", kit.merged(pieces, test_list(spec), C), spec["colors"])
+    kit.write_piece(d / "row.gltf", kit.merged(pieces, None, C, gap=1.0), spec["colors"])
+    print(f"[build] {spec['name']}: {len(pieces)} pieces -> {d / 'pieces'}")
+
+
+def test_list(spec: dict) -> list:
+    return [(name, tuple(at), int(t)) for name, at, t in spec.get("test", [])]
+
+
+def load_pieces(d: Path) -> dict:
+    meta = json.loads(need(d / "pieces.json", "build").read_text())
+    return {n: kit.piece_from(n, m, kit.read_piece(d / "pieces" / f"{n}.gltf")) for n, m in meta.items()}
+
+
+def stage_kit_frame(spec: dict, seed: int) -> bool:
+    d = out_dir(spec["name"])
+    C = float(spec["cell"])
+    pieces = load_pieces(d)
+    (d / "frame.json").unlink(missing_ok=True)
+    report = {"pieces": {}, "faces": {}}
+    for name, p in pieces.items():
+        checks, faces = kit.check_piece(p, C)
+        report["pieces"][name] = checks
+        report["faces"][name] = faces
+    report["test"] = kit.check_arrangement(pieces, report["faces"], test_list(spec), C)
+    every = [c for cs in report["pieces"].values() for c in cs] + report["test"]
+    report["pass"] = all(c["ok"] for c in every)
+    (d / "frame.json").write_text(json.dumps(report, indent=1) + "\n")
+    views = d / "views"
+    views.mkdir(exist_ok=True)
+    for scene in ("row", "test"):
+        cmd = ["blender", "-b", "--factory-startup", "--python-exit-code", "1",
+               "--python", str(BLENDER_SCRIPTS / "render_kit.py"), "--", str(d / f"{scene}.gltf"), str(views), scene]
+        run = subprocess.run(cmd, capture_output=True, text=True)
+        if run.returncode:
+            sys.stderr.write(run.stdout[-4000:] + run.stderr[-4000:])
+            sys.exit(f"[frame] {spec['name']}: rendering {scene} failed (exit {run.returncode})")
+    kit_sheet(d, spec, report)
+    print(f"[frame] {spec['name']}: {'PASS' if report['pass'] else 'FAIL'}  sheet: {d / 'sheet.png'}")
+    for name, checks in list(report["pieces"].items()) + [("test", report["test"])]:
+        bad = [c for c in checks if not c["ok"]]
+        print(f"  {'ok  ' if not bad else 'FAIL'} {name:<15} {len(checks)} checks", end="")
+        print("" if not bad else "  " + "; ".join(f"{c['name']} = {c['value']} ({c['limit']}) {c.get('detail', '')}"
+                                                 for c in bad))
+    return report["pass"]
+
+
+def kit_sheet(d: Path, spec: dict, report: dict) -> None:
+    """`sheet.png`: the pieces in a row above the test arrangement from three sides."""
+    from PIL import Image, ImageDraw
+    from PIL import ImageChops
+    v = d / "views"
+    w, label = 1500, 28
+
+    def crop(path):
+        im = Image.open(path).convert("RGB")
+        diff = ImageChops.difference(im, Image.new("RGB", im.size, im.getpixel((0, 0)))).convert("L")
+        box = diff.point(lambda v: 255 if v > 24 else 0).getbbox()  # the background is not quite flat
+        return im.crop((max(box[0] - 16, 0), max(box[1] - 16, 0), min(box[2] + 16, im.width),
+                        min(box[3] + 16, im.height))) if box else im
+
+    row = crop(v / "row_front.png")
+    row = row.resize((w, int(row.height * w / row.width)))
+    tests = [crop(v / f"test_{n}.png") for n in ("front", "back", "top")]
+    th = 520
+    tests = [t.resize((int(t.width * th / t.height), th)) for t in tests]
+    scale = min(1.0, w / sum(t.width for t in tests))
+    tests = [t.resize((int(t.width * scale), int(th * scale))) for t in tests]
+    sheet = Image.new("RGB", (w, label + row.height + tests[0].height), (24, 24, 28))
+    draw = ImageDraw.Draw(sheet)
+    failed = [f"{n}: {c['name']}" for n, cs in list(report["pieces"].items()) + [("test", report["test"])]
+              for c in cs if not c["ok"]]
+    draw.text((8, 7), f"{spec['name']}: {'PASS' if report['pass'] else 'FAIL ' + ', '.join(failed)}  "
+                      f"{len(report['pieces'])} pieces, cell {spec['cell']} m, test of {len(spec.get('test', []))}",
+              fill=(120, 220, 120) if report["pass"] else (240, 110, 90))
+    sheet.paste(row, (0, label))
+    x = 0
+    for t in tests:
+        sheet.paste(t, (x, label + row.height))
+        x += t.width
+    sheet.save(d / "sheet.png")
+
+
+def stage_kit_export(spec: dict, seed: int, force: bool = False) -> None:
+    d = out_dir(spec["name"])
+    report = json.loads(need(d / "frame.json", "frame").read_text())
+    if not report["pass"] and not force:
+        sys.exit(f"[export] {spec['name']}: last frame check failed; fix it or pass --force")
+    meta = json.loads((d / "pieces.json").read_text())
+    game = game3d_assets("kits", spec["name"])
+    if game.exists():
+        shutil.rmtree(game)
+    game.mkdir(parents=True)
+    pieces = {}
+    for name, m in meta.items():
+        shutil.copyfile(d / "pieces" / f"{name}.gltf", game / f"{name}.gltf")
+        p = kit.piece_from(name, m, None)
+        pieces[name] = kit.manifest_entry(p, report["faces"][name], m["parts"])
+    manifest = {"kit": spec["name"], "cell": float(spec["cell"]), "colors": spec["colors"],
+                "_about": "written by assetgen props (kit); the format is in assetgen/props/scripts/kit.py",
+                "pieces": pieces, "test": [[n, list(at), t] for n, at, t in test_list(spec)]}
+    (game / "kit.json").write_text(json.dumps(manifest, indent=1) + "\n")
+    print(f"[export] {spec['name']}: {len(pieces)} pieces -> {game}")
+
+
 STAGES = ["concept", "mesh", "frame", "export"]
+KIT_STAGES = ["build", "frame", "export"]
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("stage", choices=STAGES + ["all"])
+    p.add_argument("stage", choices=STAGES + ["build", "all"])
     p.add_argument("names", nargs="+")
     p.add_argument("--seed", type=int, help="override the spec's seed")
     p.add_argument("--force", action="store_true", help="export even if the last frame check failed")
@@ -169,6 +302,22 @@ def main() -> None:
     for name in a.names:
         spec = load_spec(name)
         seed = a.seed if a.seed is not None else int(spec.get("seed", 0))
+        if spec.get("kind") == "kit":
+            stages = KIT_STAGES if a.stage == "all" else [a.stage]
+            if not set(stages) <= set(KIT_STAGES):
+                sys.exit(f"{name} is a kit, made by code: its stages are {', '.join(KIT_STAGES)}")
+            for stage in stages:
+                if stage == "build":
+                    stage_build(spec, seed)
+                elif stage == "frame":
+                    if not stage_kit_frame(spec, seed):
+                        failed.append(name)
+                        break
+                elif stage == "export":
+                    stage_kit_export(spec, seed, a.force)
+            continue
+        if a.stage == "build":
+            sys.exit(f"{name} is not a kit; `build` is a kit stage")
         for stage in (STAGES if a.stage == "all" else [a.stage]):
             if stage == "concept":
                 stage_concept(spec, seed)
