@@ -34,6 +34,8 @@ studio = "python -m foliage.scripts.serve"
 creature = "python -m creatures.scripts.creature"
 # Props: concept -> TRELLIS.2 mesh -> frame (scale, ground, check) -> game. `pixi run prop --help`.
 prop = "python -m props.scripts.prop"
+# Concepts: photograph a site in the running game, draw a structure there. `pixi run concept --help`.
+concept = "python -m concepts.scripts.concept"
 
 [dependencies]
 python = "3.12.*"

@@ -61,6 +61,21 @@ class ComfyClient:
         except ComfyError:
             return False
 
+    def free(self, wait: float = 30.0) -> None:
+        """Unload every model and give the GPU memory back, for another program that needs it
+        (the game, when it shares the GPU). The server does it between jobs, so wait until the
+        memory torch holds has dropped below 1 GB, or `wait` seconds."""
+        self._post_raw("/free", {"unload_models": True, "free_memory": True})
+        deadline = time.time() + wait
+        while time.time() < deadline:
+            devices = self._get_json("/system_stats").get("devices", [])
+            if all(d.get("torch_vram_total", 0) < 1 << 30 for d in devices):
+                return
+            time.sleep(0.5)
+
+    def _post_raw(self, path: str, payload) -> bytes:
+        return self._request("POST", path, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+
     # -- node registry -------------------------------------------------------
 
     def object_info(self, refresh: bool = False) -> dict:
@@ -149,6 +164,9 @@ class ComfyClient:
             "POST", "/upload/image", data=b"".join(parts),
             headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
         )
+        # LoadImage offers the input folder's files as its options, so a cached
+        # registry would reject the image just uploaded.
+        self._object_info = None
         return json.loads(raw)
 
     # -- execution -----------------------------------------------------------

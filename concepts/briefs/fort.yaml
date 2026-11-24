@@ -1,0 +1,25 @@
+# A small stone fort, the builder slice's first structure. A brief is what to draw on a
+# site; `concepts/scripts/concept.py` reads only the keys below. Edit freely.
+
+# What to draw. Say its size in metres: the model has no other way to know the scale, and
+# left alone it draws a castle.
+subject: >-
+  a small medieval stone fort, about 30 metres across: a curtain wall about 6 metres high
+  with battlements, one gate, and a square tower at each corner
+
+# How it should look. This is the house style; change it here to change every concept.
+style: >-
+  Built of rough grey stone like the rocks in the picture, plain and practical, a little
+  weathered. It sits on the ground the way the ground lies, with no new hill or platform.
+  Game screenshot, the same rendering as the rest of the picture.
+
+# The prompt. Picture 1 is the site photo; `{subject}` and `{style}` are filled in from above.
+prompt: >-
+  Add {subject} to Picture 1, standing in the middle of the picture. {style}
+  Keep the land, the mountains, the rocks, the camera and the sunlight exactly as they are.
+
+# Views of `site.shots` to draw on: approach, north, east, south, west, above, inside. Each
+# view is drawn on its own, so each is its own design of the fort. The low and side views
+# work; from above the photo is mostly grass, and the model invents a new camera.
+views: [approach, south]
+seeds: [0, 1]
