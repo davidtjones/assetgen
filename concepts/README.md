@@ -2,9 +2,8 @@
 
 Photograph a site in the running game, then have an image model draw a structure standing
 there: a fort on a mountain pass, with the land, rocks, camera and light kept as they are.
-A builder (an agent, or David) makes concepts before it builds; they are what it builds
-toward. Changing the brief or the model changes every concept, so they are where the look
-of what gets built is tuned.
+Each view is drawn on its own, so each is its own design of the structure: a concept shows
+the feel of a place, not a layout to build from.
 
 ```sh
 # in ../game3d: a world with places, and the game running

@@ -1,17 +1,19 @@
-# A small fort. A brief is what to draw on a site; `concepts/scripts/concept.py` reads only
+# A fort. A brief is what to draw on a site; `concepts/scripts/concept.py` reads only
 # the keys below. Edit freely, or copy it for a build of your own and pass the copy's path.
 
 # What to draw: what it is for, how big, and how it came to be, not a list of parts. Say its
-# size in metres: the model has no other way to know the scale, and left alone it draws a
-# castle. A list of parts ("a wall, one gate, a tower at each corner") is drawn as listed and
+# size in metres, from the fort's role in the builder's programme
+# (`../game3d/agents/builder/programmes/fort.toml`): the model has no other way to know the
+# scale. This default is a pass fort. A list of parts ("a wall, one gate, a tower at each corner") is drawn as listed and
 # nothing more, and only purpose ("built on the rock, hard to take") still gives a bare ring
 # of wall. A history ("an old tower first, then walls, then ...") gives a fort with a keep,
 # a gatehouse, timber and sheds (sampled 2026-11-24 on the col).
 subject: >-
-  a weathered fantasy border fort that holds this place, about 30 metres across, for a
-  garrison of twenty. It has grown over generations: an old stone tower first, then walls,
-  then a gatehouse where the road comes in, timber hoardings, sheds and repairs. Every part
-  sits where the ground made it easy or useful
+  a weathered fantasy fort that holds this mountain pass, about 120 metres across, for a
+  garrison of a hundred and fifty. It has grown over generations: an old stone keep on the
+  high ground first, then a wall across the pass from bank to bank, then a great gatehouse
+  between two towers where the road comes in, then barracks, a hall, stables and stores,
+  timber hoardings and repairs. Every part sits where the ground made it easy or useful
 
 # How it should look. This is the house style; change it here to change every concept.
 style: >-
