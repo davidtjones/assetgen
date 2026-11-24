@@ -1,17 +1,23 @@
-# A small stone fort, the builder slice's first structure. A brief is what to draw on a
-# site; `concepts/scripts/concept.py` reads only the keys below. Edit freely.
+# A small fort. A brief is what to draw on a site; `concepts/scripts/concept.py` reads only
+# the keys below. Edit freely, or copy it for a build of your own and pass the copy's path.
 
-# What to draw. Say its size in metres: the model has no other way to know the scale, and
-# left alone it draws a castle.
+# What to draw: what it is for, how big, and how it came to be, not a list of parts. Say its
+# size in metres: the model has no other way to know the scale, and left alone it draws a
+# castle. A list of parts ("a wall, one gate, a tower at each corner") is drawn as listed and
+# nothing more, and only purpose ("built on the rock, hard to take") still gives a bare ring
+# of wall. A history ("an old tower first, then walls, then ...") gives a fort with a keep,
+# a gatehouse, timber and sheds (sampled 2026-11-24 on the col).
 subject: >-
-  a small medieval stone fort, about 30 metres across: a curtain wall about 6 metres high
-  with battlements, one gate, and a square tower at each corner
+  a weathered fantasy border fort that holds this place, about 30 metres across, for a
+  garrison of twenty. It has grown over generations: an old stone tower first, then walls,
+  then a gatehouse where the road comes in, timber hoardings, sheds and repairs. Every part
+  sits where the ground made it easy or useful
 
 # How it should look. This is the house style; change it here to change every concept.
 style: >-
-  Built of rough grey stone like the rocks in the picture, plain and practical, a little
-  weathered. It sits on the ground the way the ground lies, with no new hill or platform.
-  Game screenshot, the same rendering as the rest of the picture.
+  Rough stone quarried from the rocks in the picture, with some timber, weathered and
+  patched over many years. Fitted to the ground as it lies. The same light, colours and
+  rendering as the rest of the picture.
 
 # The prompt. Picture 1 is the site photo; `{subject}` and `{style}` are filled in from above.
 prompt: >-

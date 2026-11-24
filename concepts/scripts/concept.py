@@ -1,6 +1,7 @@
 """Concepts: photograph a site in the running game, then have an image model draw a structure there.
 
-    pixi run concept <site> [--brief fort] [--views a,b] [--seeds 0,1] [--photos <dir>] [--full]
+    pixi run concept <site> [--brief fort|<file.yaml>] [--views a,b] [--seeds 0,1] [--photos <dir>]
+                            [--out <dir>] [--full]
 
 A builder (an agent, or David) runs this before it builds: the concept is what it builds
 toward. `<site>` is a place of the loaded world (`place.list` in the game) or a structure
@@ -18,8 +19,12 @@ toward. `<site>` is a place of the loaded world (`place.list` in the game) or a 
 3. **Sheet.** `<brief>/sheet.png`: one row per view, the photo and then each seed's concept.
    `<brief>/concept.json` records the brief, each prompt, the model settings and the times.
 
-A brief is `concepts/briefs/<name>.yaml`: `subject`, `style`, `prompt` (with `{subject}` and
-`{style}` filled in), `views` and `seeds`. The words live there, not here; see `concepts/README.md`.
+`--out <dir>` puts the concepts, sheet and record in `<dir>` instead (and the photos in
+`<dir>/photos`, unless `--photos` is given): a builder keeps them with the rest of its build.
+
+A brief is `concepts/briefs/<name>.yaml`, or any YAML file given by path: `subject`, `style`,
+`prompt` (with `{subject}` and `{style}` filled in), `views` and `seeds`. The words live there,
+not here; see `concepts/README.md`.
 
 The model is Qwen-Image-Edit-2511 (int8) with the Lightning 4-step LoRA: about 10 s an image
 on the 3090 once loaded. `--full` runs it without the LoRA, 40 steps at cfg 3: about 135 s,
@@ -94,8 +99,14 @@ def edit_workflow(photo: str, prompt: str, seed: int, prefix: str, settings: dic
     return g
 
 
-def load_brief(name: str) -> dict:
-    path = BRIEFS / f"{name}.yaml"
+def brief_path(brief: str) -> Path:
+    """`--brief`: a name in `concepts/briefs/`, or a path to a YAML file."""
+    if brief.endswith((".yaml", ".yml")) or "/" in brief:
+        return Path(brief).resolve()
+    return BRIEFS / f"{brief}.yaml"
+
+
+def load_brief(path: Path) -> dict:
     if not path.exists():
         sys.exit(f"no brief {path} (briefs: {', '.join(p.stem for p in sorted(BRIEFS.glob('*.yaml')))})")
     brief = yaml.safe_load(path.read_text())
@@ -156,14 +167,17 @@ def contact_sheet(out: Path, photos: Path, views: list[str], seeds: list[int]) -
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("site", help="a place of the loaded world, or a structure")
-    ap.add_argument("--brief", default="fort", help="concepts/briefs/<name>.yaml (default: fort)")
+    ap.add_argument("--brief", default="fort", help="a name in concepts/briefs/ (default: fort), or a path to a brief YAML")
     ap.add_argument("--views", help="comma-separated views, overriding the brief's")
     ap.add_argument("--seeds", help="comma-separated seeds, overriding the brief's")
     ap.add_argument("--photos", type=Path, help="use the photos in this directory instead of taking new ones")
+    ap.add_argument("--out", type=Path, help="write the concepts here (default: concepts/out/<site>/<brief>)")
     ap.add_argument("--full", action="store_true", help="40 steps without the Lightning LoRA (slower, a little crisper)")
     args = ap.parse_args()
 
-    brief = load_brief(args.brief)
+    path = brief_path(args.brief)
+    brief = load_brief(path)
+    name = path.stem
     views = args.views.split(",") if args.views else list(brief["views"])
     seeds = [int(s) for s in args.seeds.split(",")] if args.seeds else [int(s) for s in brief["seeds"]]
     unknown = [v for v in views if v not in VIEWS]
@@ -171,26 +185,25 @@ def main() -> None:
         sys.exit(f"unknown views {unknown}; site.shots takes {', '.join(VIEWS)}")
     settings = FULL if args.full else FAST
 
-    site_dir = OUT / args.site
-    photos = args.photos.resolve() if args.photos else site_dir / "photos"
+    out = args.out.resolve() if args.out else OUT / args.site / name
+    photos = args.photos.resolve() if args.photos else (out / "photos" if args.out else OUT / args.site / "photos")
     if not args.photos:
         photos.mkdir(parents=True, exist_ok=True)
         take_photos(args.site, photos)
 
-    out = site_dir / args.brief
     out.mkdir(parents=True, exist_ok=True)
     client = comfy(out)
     uploaded = {v: client.upload_image(photo_of(photos, v), name=f"concept_{args.site}_{v}.png")["name"] for v in views}
 
-    record = {"site": args.site, "brief": args.brief, "photos": str(photos), "model": {**QWEN, **settings},
+    record = {"site": args.site, "brief": str(path), "photos": str(photos), "model": {**QWEN, **settings},
               "prompt": words(brief["prompt"], brief), "images": []}
     prompt = words(brief["prompt"], brief)
     for view in views:
         for seed in seeds:
             stem = f"{view}_s{seed}"
             t0 = time.time()
-            workflow = edit_workflow(uploaded[view], prompt, seed, f"concepts/{args.site}_{args.brief}_{stem}", settings)
-            fetch(client, run_workflow(client, workflow, 1800), f"{args.site}_{args.brief}_{stem}", out / f"{stem}.png")
+            workflow = edit_workflow(uploaded[view], prompt, seed, f"concepts/{args.site}_{name}_{stem}", settings)
+            fetch(client, run_workflow(client, workflow, 1800), f"{args.site}_{name}_{stem}", out / f"{stem}.png")
             took = time.time() - t0
             record["images"].append({"view": view, "seed": seed, "file": f"{stem}.png", "seconds": round(took, 1)})
             print(f"[concept] {args.site} {view} seed {seed}: {out / (stem + '.png')} ({took:.0f} s)")

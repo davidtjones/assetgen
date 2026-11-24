@@ -13,6 +13,7 @@ WORLD_DIR=assets/terrain/crossing cargo run --release
 pixi run concept col                      # photos, then the fort brief's concepts
 pixi run concept col --views approach,west --seeds 3,4
 pixi run concept col --photos concepts/out/col/photos   # reuse photos; no game needed
+pixi run concept col --brief /abs/path/brief.yaml --photos <dir> --out <dir>   # a builder's own
 ```
 
 `<site>` is a place of the loaded world (`place.list` in the game's console) or a structure
@@ -30,6 +31,11 @@ pixi run concept col --photos concepts/out/col/photos   # reuse photos; no game 
    `<brief>/concept.json` records the prompt, the model settings and each image's time. Both
    cover the latest run only; concept images from earlier runs stay beside them.
 
+`--out <dir>` writes the concepts, sheet and record to `<dir>` instead of
+`concepts/out/<site>/<brief>/` (and new photos to `<dir>/photos`). A builder uses it to keep
+its concepts in its own build directory, with `--photos` pointing at the site pictures it has
+already taken.
+
 The game and ComfyUI share the GPU, and the game quits when it runs out of memory. Before the
 photos, the tool asks a running ComfyUI to unload its models. While the concepts are drawn
 ComfyUI loads the model beside the running game, holding about 10 GB, and the game keeps
@@ -37,18 +43,27 @@ running.
 
 ## Briefs
 
-A brief is `briefs/<name>.yaml`, the words the model is given. Edit it to change what is
-drawn; no code needs to change.
+A brief is `briefs/<name>.yaml`, the words the model is given, passed as `--brief <name>`; or
+any YAML file with the same keys, passed by its path. Edit it to change what is drawn; no code
+needs to change.
 
 | Key | What it is |
 | --- | --- |
-| `subject` | What to draw, with its size in metres. Without a size the model draws a castle. |
+| `subject` | What to draw: what it is for, its size in metres, and how it came to be. Without a size the model draws a castle. |
 | `style` | How it looks: material, mood, how it meets the ground. The house style. |
 | `prompt` | The full instruction. Picture 1 is the site photo; `{subject}` and `{style}` are filled in. |
 | `views` | Which of `site.shots`' views to draw on. |
 | `seeds` | One concept per seed per view. |
 
 Today there is one brief, `fort`.
+
+**Write the subject as a history, not a list of parts.** The model draws a list as listed and
+adds nothing: "a curtain wall with battlements, one gate, a square tower at each corner" gave
+plain walled yards that matched the fort kit and nothing more. Purpose alone ("built on the
+rock, hard to take") gave a bare ring of wall. A history ("an old stone tower first, then
+walls, then a gatehouse where the road comes in, timber hoardings, sheds and repairs") gave a
+round keep, a gatehouse, timber, sheds and moss. Those were samples of six images each on the col,
+2026-11-24. A concept can show what the kit cannot build yet; that gap is worth knowing.
 
 ## The model
 
