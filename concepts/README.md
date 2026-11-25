@@ -64,6 +64,51 @@ walls, then a gatehouse where the road comes in, timber hoardings, sheds and rep
 round keep, a gatehouse, timber, sheds and moss. Those were samples of six images each on the col,
 2026-11-24. A concept can show what the kit cannot build yet; that gap is worth knowing.
 
+## Painting a blockout
+
+`pixi run paint` repaints pictures of a build in the game as the finished place. A concept
+drawn on bare land is a different design in every view; a painting keeps the blockout's
+layout, so all its views show one place from every side, on the real land. A builder paints
+its blockout (a site plan built with `plan.build`, its buildings still plain blocks) to judge
+and tune the layout before building the buildings.
+
+```sh
+# in ../game3d: the game running, the plan built
+pixi run paint scripts/plans/col-blocks.toml                 # plan path from here or from the game's root
+pixi run paint <plan> --out <dir> --views gate,yard --seeds 0
+pixi run paint <plan> --pictures <dir>/blockout              # reuse pictures; no game needed
+pixi run paint <plan> --pictures <dir>/blockout --words      # print each view's prompt, paint nothing
+```
+
+1. **Pictures.** With the blocks plain white and unnamed (`blockout.colours off`,
+   `blockout.labels off`), `site.shots` of the plan's structure and `site.eye` for each of the
+   plan's `[[view]]`s (a player's eye on the ground: `name`, `at`, `toward`, in plan metres)
+   -> `<out>/blockout/<n>-<view>.png`. Beside each is a `.json` from `site.seen`: how much of the
+   structure is in sight, and for each block how much, where on the picture, and whether its
+   door shows, traced through what is drawn.
+2. **Words.** One prompt per picture: what the site is for (the first sentence of its
+   programme's role), then one sentence per part in sight, biggest first. The walls and towers
+   take the plan's `finish` (or a wall's or tower's own); each block is "the plain white box
+   on the left stands for a stable: paint it as the stable, timber on a stone footing, ...",
+   with its door: in sight ("the dark opening on it"), on a side out of sight, or none. Doors
+   and gates are only where the blockout has a dark opening or an arch. The frame of the prompt
+   is `briefs/paint.yaml`.
+3. **Paintings.** -> `<out>/painted/<view>_s<seed>.png`, and `<out>/sheet.png` with each
+   blockout picture beside its paintings. `<out>/paint.json` records every prompt.
+
+`--out` defaults to `concepts/out/<site>/paint`.
+
+**Why the words are built this way.** Tried on the col on 2026-11-24:
+
+- **Plain white blocks, not coloured.** With the blocks in their kinds' colours (red barracks,
+  orange hall), the model left a coloured box as it was in a third of the views, or swapped
+  the colours between boxes; telling it that every box becomes a building made it add new
+  coloured boxes. White blocks, like an architect's model, were painted in every view.
+- **The finish in words, per part.** A painted view given as a style reference was copied,
+  camera and all. With each part's finish written out, the walls, towers and each building kept
+  their materials across all views and seeds.
+- **Only the parts in sight.** A part named but not in the picture gets drawn somewhere.
+
 ## The model
 
 Qwen-Image-Edit-2511 (int8, Apache 2.0) with the Lightning 4-step LoRA, run in ComfyUI. The
@@ -86,3 +131,8 @@ are still in `tools/ComfyUI/models`.
   a horizon. The low and side views work.
 - **Size is only roughly followed.** The metres in `subject` help, but the drawn fort is
   not measured against anything.
+- **A painting of a far view invents.** Where the site is a small part of the picture (the
+  approach), the model added a building that is not in the blockout in both seeds tried. The
+  views from each side and from eye height kept to the blockout.
+- **`site.seen` counts a part by sampled points.** A wall a metre from the camera can fill the
+  edge of the picture with none of its sample points on it; the eye views keep 2 m from walls.

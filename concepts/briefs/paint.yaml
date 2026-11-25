@@ -1,0 +1,33 @@
+# The words for painting a blockout (`pixi run paint <plan>`, `concepts/scripts/paint.py`).
+#
+# What each part looks like comes from the site plan: each block's `finish`, and the plan's
+# own `finish` (or a wall's or tower's) for the walls and towers. What the site is for comes
+# from its programme's role. This file holds the rest: how the instruction is put together,
+# and the look of anything the plan gives no finish.
+
+# For walls and towers when the plan gives no finish.
+default_finish: >-
+  rough stone quarried from the rocks around it, weathered and patched over many years, moss
+  low on the walls
+
+# Said of every painting, after the parts.
+style: >-
+  Weathered and lived in. The same light, colours and rendering as the rest of the picture.
+
+# {subject}: what the site is for, from the programme's role. {parts}: one sentence per part in
+# sight, biggest in the picture first, with its door. {doors}: the rule for doors below.
+prompt: >-
+  Picture 1 is a blockout in a game: plain shapes standing where the parts of a place will be.
+  The place is {subject}. Turn it into the finished place, each part as described. {parts} {doors} {style}
+  Keep every wall, tower, gate, stair and building exactly where it is, with the same shape
+  and size, and add no other buildings. Keep the land, the rocks, the mountains, the camera
+  and the sunlight exactly as they are.
+
+doors: >-
+  Doors and gates are only where Picture 1 has a dark opening or an archway; every other wall
+  is solid, with no door.
+
+# The pictures painted, by name: site.shots' views and the plan's [[view]]s. Not `above`:
+# from above the model invents a new camera.
+views: [approach, north, east, south, west, inside]
+seeds: [0, 1]

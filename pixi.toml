@@ -36,6 +36,8 @@ creature = "python -m creatures.scripts.creature"
 prop = "python -m props.scripts.prop"
 # Concepts: photograph a site in the running game, draw a structure there. `pixi run concept --help`.
 concept = "python -m concepts.scripts.concept"
+# Paint a blockout: pictures of a build in the game, repainted as the finished place. `pixi run paint --help`.
+paint = "python -m concepts.scripts.paint"
 
 [dependencies]
 python = "3.12.*"
