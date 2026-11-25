@@ -23,6 +23,8 @@ is the lit preview sheet of every seed (`preview.py`): judge candidates there.
 About half a minute per candidate on the 3090.
 """
 
+from __future__ import annotations
+
 import argparse
 import atexit
 import json
@@ -95,8 +97,11 @@ def _run(client: ComfyClient, workflow: dict, dest: Path) -> list[Path]:
             for item in client.collect_outputs(entry)]
 
 
-def generate(client: ComfyClient, name: str, entry: dict, seed: int, size: int, decomposer: str) -> Path:
-    d = OUT / f"{name}_s{seed}"
+def generate(client: ComfyClient, name: str, entry: dict, seed: int, size: int, decomposer: str,
+             dest: Path | None = None) -> Path:
+    """One candidate of `entry` (a `materials.yaml` entry: `subject`, optional `avoid`, `tile`,
+    `edit_of`) into `dest`, by default `out/mat/<name>_s<seed>/`."""
+    d = dest or OUT / f"{name}_s{seed}"
     d.mkdir(parents=True, exist_ok=True)
     scratch = f"assetgen_material/{name}_s{seed}"
     avoid = ", ".join(filter(None, [entry.get("avoid"), AVOID]))

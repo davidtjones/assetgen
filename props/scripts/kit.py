@@ -1,32 +1,55 @@
 """Kit pieces: building pieces made by code on a grid of cubes, for builders to snap together.
 
-A kit is one style of building pieces (walls, towers, gates, stairs...) that a builder, an
-agent or a player, places on a structure's grid. It is a prop spec with `kind: kit`
-(`props/specs/<name>.yaml`), run by `props/scripts/prop.py` with the stages `build`, `frame`
-and `export`. This module holds what those stages do; `prop.py`'s docstring has the commands.
+A kit is one set of building pieces (walls, towers, gates, stairs, and the walls, openings and
+roofs of small buildings) that a builder, an agent or a player, places on a structure's grid.
+It is a prop spec with `kind: kit` (`props/specs/<name>.yaml`), run by `props/scripts/prop.py`
+with the stages `build`, `frame` and `export`. This module holds what those stages do;
+`prop.py`'s docstring has the commands.
 
 **The grid.** Every piece fills whole cells of a grid of cubes `cell` metres on a side (2 m).
 A piece's own frame has +Y up and its cells at `[0, w) x [0, h) x [0, d)`, so its mesh lies in
 `x in [0, w*cell], y in [0, h*cell], z in [0, d*cell]`, except that a piece may reach `below`
-metres under its bottom (a foundation going into the ground). A piece's **outer side is -z**:
-battlements stand on the -z edge, a gate's outside is -z, stairs climb toward +z.
+metres under its bottom (a foundation going into the ground) and `reach` metres past its cells
+on every side (a roof's eaves). A piece's **outer side is -z**: battlements stand on the -z
+edge, a gate's outside is -z, stairs climb toward +z, a building's wall faces out at -z.
 
 **Turns.** A piece is placed with a turn `t` in 0..3: a rotation of `t` quarter turns about +Y,
 the way Bevy's `Quat::from_rotation_y(t * pi/2)` turns (+Z goes to +X), then moved so its
 cells start at the cell it was placed at. One turn takes the outer side from -z to -x.
 `place()` is the reference; game3d's `world/kit.rs` does the same.
 
-**The manifest** (`kit.json`, beside the pieces in `game3d/assets/kits/<kit>/`): `cell`
-(metres), `colors` (sRGB 0..255 per surface kind: `stone`, `wood`, `roof`), `pieces` (below)
-and `test`, the spec's test arrangement as `[piece, [i, j, k], turn]`. Each piece says:
+**Slots.** Each surface of a piece names the part of a building it is, not what it is made
+of: `footing`, `wall`, `upper` (an upper storey's walls and the gables), `frame` (posts,
+beams, lintels, door and window frames, the boards under a roof), `floor` or `roof`. The game
+gives each slot a material per structure, so the same pieces dress as a stone keep or a
+timber barracks; the kit's `colors` are only the default look. A slot named in the spec's
+`inherit` takes another slot's material when its structure gives it none (`upper` takes the
+`wall`'s, so a building of one material names it once).
 
-- `file`, its glTF, and `parts`: the surface kind of each of its primitives, in order (each
-  primitive is one surface kind, so the game can give each kind its own material).
-- `cells` `[w, h, d]` and `below` (metres under the bottom).
+**Small buildings** (the `house_*`, `gable` and `roof_*` pieces). A storey is two cells
+(4 m). Walls are thin and stand on the cell's outer edge, their face 0.06 m in from it; a
+ground-storey piece stands on a footing that reaches `below` into the ground, an upper-storey
+piece carries the floor's edge along the inside of its wall. Roofs are 45 degrees, laid in
+courses that each rise one cell over one cell: `roof_eave` over the wall, `roof_slope` above
+it, `roof_ridge` for the middle course of a building an odd number of cells deep; their `_l`
+and `_r` kinds close the roof's end with a gable on their -x or +x side. `gable` fills the
+cells of a gable end under the roof. `house()` lays a whole building out of them.
+
+**The manifest** (`kit.json`, beside the pieces in `game3d/assets/kits/<kit>/`): `cell`
+(metres), `colors` (sRGB 0..255 per slot), `inherit` (slot -> the slot it takes its material
+from when given none), `pieces` (below) and `test`, the spec's test arrangement as
+`[piece, [i, j, k], turn]`. Each piece says:
+
+- `file`, its glTF, and `parts`: the slot of each of its primitives, in order (each primitive
+  is one slot, so the game can give each slot its own material).
+- `cells` `[w, h, d]`, `below` (metres under the bottom) and `reach` (metres past its cells).
+- `rests`: the sides (`-z`, `+z`, ...) toward which the piece may rest on the piece one cell
+  down and one over, as a roof course rests on the course below it, instead of on the cell
+  straight under it.
 - `faces`: for each cell on the outside of the piece and each of its outward sides (`-x`,
   `+x`, `-y`, `+y`, `-z`, `+z`), what that face is: `solid` (fully closed, measured),
   `open` (nothing there), `passage` (a way through, such as a gate), or the name of a partial
-  profile (`parapet`, `stairs`...) that should meet the same profile.
+  profile (`parapet`, `stairs`, `house`...) that should meet the same profile.
 - `walk`: where a player can stand, as rectangles `{x: [x0, x1], z: [z0, z1], y: [y0, y1]}`
   in the piece's frame, `y0` at `z0` and `y1` at `z1` (a flat surface has `y0 == y1`; stairs
   are a ramp).
@@ -36,14 +59,15 @@ and `test`, the spec's test arrangement as `[piece, [i, j, k], turn]`. Each piec
   hollow and not through its far wall.
 
 **The checks** (`frame`, written to `out/<kit>/frame.json`): each piece stays inside its
-cells (and `below`); every side the piece says is solid is closed over every cell on it;
-every passage is clear all the way through; every walk surface is where the piece says, with
-2 m of headroom; and the test arrangement in the spec (`test`) has no two pieces in one cell,
-no passage opening onto a solid face, and no two different partial profiles meeting.
+cells (and `below` and `reach`); every side the piece says is solid is closed over every cell
+on it; every passage is clear all the way through; every walk surface is where the piece says,
+with 2 m of headroom; and the test arrangement in the spec (`test`, and the buildings in
+`houses`) has no two pieces in one cell, no passage opening onto a solid face, and no two
+different partial profiles meeting, unless they are made to (`MEETS`).
 
-Pieces are flat-shaded boxes and extrusions with one material per surface kind (stone, wood,
-roof), coloured by the spec's `colors`. UVs are planar in metres, so a tiling material can
-dress them later.
+Pieces are flat-shaded boxes and extrusions with one primitive per slot. UVs are planar in
+metres, one tile to a cell, so a tiling material dresses them without a seam between pieces;
+a roof's slope takes one tile to a course, stretched along the slope.
 """
 
 from __future__ import annotations
@@ -60,29 +84,75 @@ HEADROOM = 2.0
 
 # --- geometry -------------------------------------------------------------------------------
 
+def _tangent(p, uv, n) -> list[float]:
+    """A flat polygon's tangent for normal maps, as glTF and Bevy's generated tangents have it:
+    xyz along +u, w the sign that makes cross(normal, tangent) * w run along +v."""
+    e1, e2 = p[1] - p[0], p[2] - p[0]
+    (du1, dv1), (du2, dv2) = uv[1] - uv[0], uv[2] - uv[0]
+    r = du1 * dv2 - du2 * dv1
+    if abs(r) < 1e-12:
+        t = np.cross(n, [0, 1, 0]) if abs(n[1]) < 0.9 else np.cross(n, [1, 0, 0])
+        return [*(t / np.linalg.norm(t)).tolist(), 1.0]
+    t = (e1 * dv2 - e2 * dv1) / r
+    b = (e2 * du1 - e1 * du2) / r
+    t = t - n * np.dot(n, t)
+    t = t / np.linalg.norm(t)
+    w = 1.0 if np.dot(np.cross(n, t), b) > 0 else -1.0
+    return [*t.tolist(), w]
+
+
 class Mesh:
     """Polygons grouped by material, flat shaded."""
 
     def __init__(self):
         self.parts: dict[str, dict[str, list]] = {}
 
-    def poly(self, pts, normal, mat):
-        """A convex planar polygon facing `normal` (its winding is fixed to match)."""
+    def poly(self, pts, normal, mat, slope=False):
+        """A convex planar polygon facing `normal` (its winding is fixed to match).
+
+        UVs are the two axes the polygon faces least, one tile per 2 m. With `slope`, a face
+        rising along z (a roof) instead takes x across and height up the slope, one tile per
+        2 m of rise: one tile to a course of a 45 degree roof, so the courses line up."""
         p = np.asarray(pts, float)
         n = np.asarray(normal, float)
         n = n / np.linalg.norm(n)
         if np.dot(np.cross(p[1] - p[0], p[2] - p[0]), n) < 0:
             p = p[::-1]
-        part = self.parts.setdefault(mat, {"positions": [], "normals": [], "uvs": [], "indices": []})
+        part = self.parts.setdefault(mat, {"positions": [], "normals": [], "uvs": [], "tangents": [], "indices": []})
         base = len(part["positions"])
         ax = int(np.argmax(np.abs(n)))
         u_ax, v_ax = {0: (2, 1), 1: (0, 2), 2: (0, 1)}[ax]
-        for q in p:
+        uv = [[q[0] / 2.0, -q[1] / 2.0] if slope else [q[u_ax] / 2.0, -q[v_ax] / 2.0] for q in p]
+        tangent = _tangent(p, np.asarray(uv), n)
+        for q, t in zip(p, uv):
             part["positions"].append(q.tolist())
             part["normals"].append(n.tolist())
-            part["uvs"].append([q[u_ax] / 2.0, -q[v_ax] / 2.0])
+            part["uvs"].append(t)
+            part["tangents"].append(tangent)
         for i in range(1, len(p) - 1):
             part["indices"] += [base, base + i, base + i + 1]
+
+    def prism(self, section, x, mats, skip=(), slope=()):
+        """A straight extrusion along x from `x[0]` to `x[1]` of a convex polygon `section`,
+        given as `(z, y)` points in order round it. `mats` is one slot for every side, in the
+        order of the section's edges (edge k runs from point k to point k + 1), then one for
+        the two ends. Sides whose index is in `skip` are left out (and `"-x"`/`"+x"` leave out
+        an end); sides in `slope` take roof UVs (see `poly`)."""
+        sec = [np.asarray(q, float) for q in section]
+        mid = np.mean(sec, 0)
+        k_end = len(sec)
+        for k, (a, b) in enumerate(zip(sec, sec[1:] + sec[:1])):
+            if k in skip:
+                continue
+            edge = b - a
+            nz, ny = edge[1], -edge[0]
+            if np.dot([nz, ny], (a + b) / 2 - mid) < 0:
+                nz, ny = -nz, -ny
+            pts = [(x[0], a[1], a[0]), (x[0], b[1], b[0]), (x[1], b[1], b[0]), (x[1], a[1], a[0])]
+            self.poly(pts, (0, ny, nz), mats[k], slope=k in slope)
+        for sign, at, side in ((-1, x[0], "-x"), (+1, x[1], "+x")):
+            if side not in skip:
+                self.poly([(at, q[1], q[0]) for q in sec], (sign, 0, 0), mats[k_end])
 
     def rect(self, axis, at, u, v, sign, mat):
         """An axis-aligned rectangle in the plane `axis = at`, spanning `u` and `v` (the other
@@ -182,6 +252,8 @@ class Piece:
     passages: list[dict] = field(default_factory=list)
     profile: str = ""                      # what a partial face is called (default: the name)
     mesh: Mesh | None = None
+    reach: float = 0.0                     # metres the mesh may reach past its cells
+    rests: tuple[str, ...] = ()            # sides it may rest toward, one cell down and over
 
 
 def merlons(m: Mesh, along: str, length: float, depth: tuple[float, float], y: tuple[float, float], cell: float):
@@ -189,9 +261,9 @@ def merlons(m: Mesh, along: str, length: float, depth: tuple[float, float], y: t
     for i in range(int(round(length / cell))):
         c = (i + 0.5) * cell
         if along == "x":
-            m.box((c - 0.5, y[0], depth[0]), (c + 0.5, y[1], depth[1]), "stone", skip=("-y",))
+            m.box((c - 0.5, y[0], depth[0]), (c + 0.5, y[1], depth[1]), "wall", skip=("-y",))
         else:
-            m.box((depth[0], y[0], c - 0.5), (depth[1], y[1], c + 0.5), "stone", skip=("-y",))
+            m.box((depth[0], y[0], c - 0.5), (depth[1], y[1], c + 0.5), "wall", skip=("-y",))
 
 
 def build_pieces(cell: float) -> dict[str, Piece]:
@@ -206,27 +278,27 @@ def build_pieces(cell: float) -> dict[str, Piece]:
     ALL = SIDES
     # foundation: a block of masonry going 4 m into the ground, to stand a wall on a slope.
     m = Mesh()
-    m.box((0, -4, 0), (C, C, C), "stone")
+    m.box((0, -4, 0), (C, C, C), "wall")
     add(Piece("foundation", (1, 1, 1), "masonry block that reaches 4 m below its cell, for uneven ground",
               below=4.0, solid=("-x", "+x", "+y", "-z", "+z"),
               walk=[dict(x=[0, C], z=[0, C], y=[C, C])]), m)
 
     # wall: a cube of masonry. A curtain wall is one cell thick; its top is the wall-walk.
     m = Mesh()
-    m.box((0, 0, 0), (C, C, C), "stone")
+    m.box((0, 0, 0), (C, C, C), "wall")
     add(Piece("wall", (1, 1, 1), "cube of masonry; stack for height, its top is a wall-walk",
               solid=ALL, walk=[dict(x=[0, C], z=[0, C], y=[C, C])]), m)
 
     # parapet: breastwork and a merlon on the outer edge, standing on a wall's top.
     m = Mesh()
-    m.box((0, 0, 0), (C, 1.0, 0.5), "stone")
+    m.box((0, 0, 0), (C, 1.0, 0.5), "wall")
     merlons(m, "x", C, (0, 0.5), (1.0, 1.9), C)
     add(Piece("parapet", (1, 1, 1), "battlement on the outer (-z) edge; stands on a wall's top"), m)
 
     # parapet_corner: battlements on the -z and -x edges.
     m = Mesh()
-    m.box((0, 0, 0), (C, 1.0, 0.5), "stone")
-    m.box((0, 0, 0.5), (0.5, 1.0, C), "stone", skip=("-z",))
+    m.box((0, 0, 0), (C, 1.0, 0.5), "wall")
+    m.box((0, 0, 0.5), (0.5, 1.0, C), "wall", skip=("-z",))
     merlons(m, "x", C, (0, 0.5), (1.0, 1.9), C)
     merlons(m, "z", C, (0, 0.5), (1.0, 1.9), C)
     add(Piece("parapet_corner", (1, 1, 1), "battlement on the -z and -x edges, for an outer corner",
@@ -239,21 +311,21 @@ def build_pieces(cell: float) -> dict[str, Piece]:
     arc = [(cx - r * math.cos(t), spring + r * math.sin(t)) for t in np.linspace(0, math.pi, 9)]
     m = Mesh()
     for sign, z in ((-1, 0.0), (+1, D)):
-        m.rect(2, z, (0, x0), (0, H), sign, "stone")
-        m.rect(2, z, (x1, W), (0, H), sign, "stone")
+        m.rect(2, z, (0, x0), (0, H), sign, "wall")
+        m.rect(2, z, (x1, W), (0, H), sign, "wall")
         for (ax_, ay), (bx, by) in zip(arc, arc[1:]):
-            m.poly([(ax_, ay, z), (bx, by, z), (bx, H, z), (ax_, H, z)], (0, 0, sign), "stone")
-    m.rect(0, 0, (0, H), (0, D), -1, "stone")
-    m.rect(0, W, (0, H), (0, D), +1, "stone")
-    m.rect(1, H, (0, W), (0, D), +1, "stone")
-    m.rect(1, 0, (0, x0), (0, D), -1, "stone")
-    m.rect(1, 0, (x1, W), (0, D), -1, "stone")
-    m.rect(0, x0, (0, spring), (0, D), +1, "stone")
-    m.rect(0, x1, (0, spring), (0, D), -1, "stone")
+            m.poly([(ax_, ay, z), (bx, by, z), (bx, H, z), (ax_, H, z)], (0, 0, sign), "wall")
+    m.rect(0, 0, (0, H), (0, D), -1, "wall")
+    m.rect(0, W, (0, H), (0, D), +1, "wall")
+    m.rect(1, H, (0, W), (0, D), +1, "wall")
+    m.rect(1, 0, (0, x0), (0, D), -1, "wall")
+    m.rect(1, 0, (x1, W), (0, D), -1, "wall")
+    m.rect(0, x0, (0, spring), (0, D), +1, "wall")
+    m.rect(0, x1, (0, spring), (0, D), -1, "wall")
     for (ax_, ay), (bx, by) in zip(arc, arc[1:]):
         mid = np.array([(ax_ + bx) / 2, (ay + by) / 2])
         n = np.array([cx, spring]) - mid
-        m.poly([(ax_, ay, 0), (bx, by, 0), (bx, by, D), (ax_, ay, D)], (n[0], n[1], 0), "stone")
+        m.poly([(ax_, ay, 0), (bx, by, 0), (bx, by, D), (ax_, ay, D)], (n[0], n[1], 0), "wall")
     add(Piece("gate", (2, 2, 1), "gateway 2 cells wide and 2 high: a round-arched passage 2.8 m wide through the wall",
               solid=("-x", "+x", "+y"), walk=[dict(x=[0, W], z=[0, D], y=[H, H])],
               passages=[dict(axis="z", u=[x0, x1], y=[0, spring])], profile="arch"), m)
@@ -261,9 +333,9 @@ def build_pieces(cell: float) -> dict[str, Piece]:
     # doorway: a wall 2 cells high with a framed door opening.
     W, H, D = C, 2 * C, C
     m = Mesh()
-    m.pierced((0, 0, 0), (W, H, D), "z", (0.4, 1.6, 0, 2.4), "stone")
+    m.pierced((0, 0, 0), (W, H, D), "z", (0.4, 1.6, 0, 2.4), "wall")
     for lo, hi in (((0.4, 0, 0.8), (0.5, 2.3, 1.2)), ((1.5, 0, 0.8), (1.6, 2.3, 1.2)), ((0.4, 2.3, 0.8), (1.6, 2.4, 1.2))):
-        m.box(lo, hi, "wood")
+        m.box(lo, hi, "frame")
     add(Piece("doorway", (1, 2, 1), "wall 2 cells high with a framed door opening 1 m wide",
               solid=("-x", "+x", "+y"), walk=[dict(x=[0, W], z=[0, D], y=[H, H])],
               passages=[dict(axis="z", u=[0.5, 1.5], y=[0, 2.3])]), m)
@@ -277,17 +349,17 @@ def build_pieces(cell: float) -> dict[str, Piece]:
                 skip = tuple(s for s, edge in (("-x", i > 0), ("+x", i < 2)) if edge)
                 hole = holes.get((side, i))
                 if hole:
-                    m.pierced(lo, hi, "z", hole, "stone", skip=skip)
+                    m.pierced(lo, hi, "z", hole, "wall", skip=skip)
                 else:
-                    m.box(lo, hi, "stone", skip=skip)
+                    m.box(lo, hi, "wall", skip=skip)
             zs = (max(u[0], t), min(u[1], S - t))
             for side, (lo, hi) in (("-x", ((0, 0, zs[0]), (t, h, zs[1]))), ("+x", ((S - t, 0, zs[0]), (S, h, zs[1])))):
                 skip = ("-z", "+z")
                 hole = holes.get((side, i))
                 if hole:
-                    m.pierced(lo, hi, "x", hole, "stone", skip=skip)
+                    m.pierced(lo, hi, "x", hole, "wall", skip=skip)
                 else:
-                    m.box(lo, hi, "stone", skip=skip)
+                    m.box(lo, hi, "wall", skip=skip)
 
     S = 3 * C
     m = Mesh()
@@ -302,10 +374,10 @@ def build_pieces(cell: float) -> dict[str, Piece]:
               profile="tower"), m)
 
     m = Mesh()
-    m.box((0.5, 0, 0.5), (S - 0.5, 0.3, S - 0.5), "wood")
+    m.box((0.5, 0, 0.5), (S - 0.5, 0.3, S - 0.5), "floor")
     for lo, hi in (((0, 0, 0), (S, 1.3, 0.5)), ((0, 0, S - 0.5), (S, 1.3, S)),
                    ((0, 0, 0.5), (0.5, 1.3, S - 0.5)), ((S - 0.5, 0, 0.5), (S, 1.3, S - 0.5))):
-        m.box(lo, hi, "stone")
+        m.box(lo, hi, "wall")
     merlons(m, "x", S, (0, 0.5), (1.3, C), C)
     merlons(m, "x", S, (S - 0.5, S), (1.3, C), C)
     merlons(m, "z", S, (0, 0.5), (1.3, C), C)
@@ -318,30 +390,286 @@ def build_pieces(cell: float) -> dict[str, Piece]:
     n, rise, run = 10, C / 10, 2 * C / 10
     for k in range(n):
         z0, z1, y = k * run, (k + 1) * run, (k + 1) * rise
-        m.rect(1, y, (0, C), (z0, z1), +1, "stone")                 # tread
-        m.rect(2, z0, (0, C), (k * rise, y), -1, "stone")            # riser
-        m.rect(0, 0, (0, y), (z0, z1), -1, "stone")                  # sides
-        m.rect(0, C, (0, y), (z0, z1), +1, "stone")
-    m.rect(2, 2 * C, (0, C), (0, C), +1, "stone")
-    m.rect(1, 0, (0, C), (0, 2 * C), -1, "stone")
+        m.rect(1, y, (0, C), (z0, z1), +1, "wall")                 # tread
+        m.rect(2, z0, (0, C), (k * rise, y), -1, "wall")            # riser
+        m.rect(0, 0, (0, y), (z0, z1), -1, "wall")                  # sides
+        m.rect(0, C, (0, y), (z0, z1), +1, "wall")
+    m.rect(2, 2 * C, (0, C), (0, C), +1, "wall")
+    m.rect(1, 0, (0, C), (0, 2 * C), -1, "wall")
     add(Piece("stairs", (1, 1, 2), "flight of ten steps rising one cell (2 m) over two, toward +z",
               solid=("-y", "+z"), walk=[dict(x=[0, C], z=[0, 2 * C], y=[0, C])]), m)
 
     # floor: a plank floor at the bottom of its cell.
     m = Mesh()
-    m.box((0, 0, 0), (C, 0.25, C), "wood")
+    m.box((0, 0, 0), (C, 0.25, C), "floor")
     add(Piece("floor", (1, 1, 1), "plank floor 0.25 m thick at the bottom of its cell",
               solid=("-y",), walk=[dict(x=[0, C], z=[0, C], y=[0.25, 0.25])]), m)
 
     # roof: a 45 degree slope rising toward +z; two back to back make a ridge.
     m = Mesh()
     m.poly([(0, 0, 0), (C, 0, 0), (C, C, C), (0, C, C)], (0, 1, -1), "roof")
-    m.rect(2, C, (0, C), (0, C), +1, "stone")
-    m.rect(1, 0, (0, C), (0, C), -1, "wood")
-    m.poly([(0, 0, 0), (0, 0, C), (0, C, C)], (-1, 0, 0), "stone")
-    m.poly([(C, 0, 0), (C, 0, C), (C, C, C)], (+1, 0, 0), "stone")
+    m.rect(2, C, (0, C), (0, C), +1, "wall")
+    m.rect(1, 0, (0, C), (0, C), -1, "frame")
+    m.poly([(0, 0, 0), (0, 0, C), (0, C, C)], (-1, 0, 0), "wall")
+    m.poly([(C, 0, 0), (C, 0, C), (C, C, C)], (+1, 0, 0), "wall")
     add(Piece("roof", (1, 1, 1), "roof slope at 45 degrees rising toward +z; two back to back make a ridge",
               solid=("-y", "+z")), m)
+    house_pieces(C, add)
+    return out
+
+
+# --- small buildings ------------------------------------------------------------------------
+
+WO, WI = 0.06, 0.40    # a building wall's outer and inner face, metres in from the cell's outer edge
+FW = WI + 0.06         # a footing's (and a floor beam's) inner face
+FOOT = 0.6             # a footing's height above the floor
+DEEP = 0.5             # how far a footing reaches into the ground
+POST = 0.45            # a corner post's side
+BEAM = 0.3             # an upper storey's floor beam
+PLANK = 0.25           # a floor's thickness, as the `floor` piece
+EAVE, VERGE = 0.5, 0.3 # a roof's overhang past the wall at its eaves and past a gable end
+SLAB = 0.25            # a roof's thickness, measured straight up
+SILL, HEAD = 1.1, 2.4  # a window's sill and head above the storey's floor
+DOOR = 2.6             # a door's height
+
+
+def house_pieces(C: float, add) -> None:
+    """The walls, openings and roofs of small buildings (see the module header)."""
+    H = 2 * C
+    house = dict(profile="house")
+    up_walk = [dict(x=[0, C], z=[FW, C], y=[PLANK, PLANK])]
+
+    def ground(m, x0=0.0, x1=C, hole=None):
+        """A ground storey's wall along the -z edge from x0 to x1: footing and wall, with a
+        window (`hole`) or a door (`hole` starting at the floor) through it."""
+        if hole and hole[2] <= 0:
+            m.box((x0, -DEEP, 0), (hole[0], FOOT, FW), "footing", skip=("-y",))
+            m.box((hole[1], -DEEP, 0), (x1, FOOT, FW), "footing", skip=("-y",))
+            hole = (hole[0], hole[1], FOOT, hole[3])
+        else:
+            m.box((x0, -DEEP, 0), (x1, FOOT, FW), "footing", skip=("-y",))
+        if hole:
+            m.pierced((x0, FOOT, WO), (x1, H, WI), "z", hole, "wall")
+        else:
+            m.box((x0, FOOT, WO), (x1, H, WI), "wall", skip=("-y",))
+
+    def upper(m, x0=0.0, x1=C, hole=None):
+        """An upper storey's wall along the -z edge: its floor beam, the wall, the floor's edge."""
+        m.box((x0, 0, 0), (x1, BEAM, FW), "frame")
+        if hole:
+            m.pierced((x0, BEAM, WO), (x1, H, WI), "z", hole, "upper")
+        else:
+            m.box((x0, BEAM, WO), (x1, H, WI), "upper", skip=("-y",))
+        m.box((x0, 0, FW), (x1, PLANK, C), "floor", skip=("-z",))
+
+    def window(m, x0=0.55, x1=1.45, y0=SILL, y1=HEAD):
+        """A window's frame on the wall's outer face, and its sill through the wall."""
+        z = (0.01, WO + 0.04)
+        # Each member reaches 2 cm into the opening, so no two faces lie in one plane.
+        m.box((x0 - 0.1, y0 - 0.12, 0.0), (x1 + 0.1, y0 + 0.02, FW), "frame")
+        m.box((x0 - 0.1, y0 + 0.02, z[0]), (x0 + 0.02, y1 - 0.02, z[1]), "frame", skip=("-y", "+y"))
+        m.box((x1 - 0.02, y0 + 0.02, z[0]), (x1 + 0.1, y1 - 0.02, z[1]), "frame", skip=("-y", "+y"))
+        m.box((x0 - 0.1, y1 - 0.02, z[0]), (x1 + 0.1, y1 + 0.15, z[1]), "frame")
+
+    def door(m, x0, x1, top, post=0.1):
+        """A door's posts and lintel on the wall's outer face."""
+        z = (0.01, WO + 0.04)
+        m.box((x0 - post, FOOT, z[0]), (x0 + 0.02, top - 0.02, z[1]), "frame", skip=("-y", "+y"))
+        m.box((x1 - 0.02, FOOT, z[0]), (x1 + post, top - 0.02, z[1]), "frame", skip=("-y", "+y"))
+        m.box((x0 - post, top - 0.02, z[0]), (x1 + post, top + 0.2, z[1]), "frame")
+
+    def corner(m, storey):
+        """Walls on the -z and -x edges, and a post at the corner."""
+        if storey == "ground":
+            m.box((0, -DEEP, 0), (C, FOOT, FW), "footing", skip=("-y",))
+            m.box((0, -DEEP, FW), (FW, FOOT, C), "footing", skip=("-y", "-z"))
+            y0 = FOOT
+        else:
+            m.box((POST, 0, 0), (C, BEAM, FW), "frame", skip=("-x",))
+            m.box((0, 0, FW), (FW, BEAM, C), "frame")
+            m.box((FW, 0, FW), (C, PLANK, C), "floor", skip=("-z", "-x"))
+            y0 = 0.0
+        yw = y0 if storey == "ground" else BEAM
+        slot = "wall" if storey == "ground" else "upper"
+        m.box((POST, yw, WO), (C, H, WI), slot, skip=("-y", "-x"))
+        m.box((WO, yw, POST), (WI, H, C), slot, skip=("-y", "-z"))
+        m.box((0, y0, 0), (POST, H, POST), "frame", skip=("-y",))
+
+    # Ground storey.
+    m = Mesh()
+    ground(m)
+    add(Piece("house_wall", (1, 2, 1), "a building's ground-storey wall on a footing, along the -z edge",
+              below=DEEP, **house), m)
+
+    m = Mesh()
+    ground(m, hole=(0.55, 1.45, SILL, HEAD))
+    window(m)
+    add(Piece("house_window", (1, 2, 1), "a building's ground-storey wall with a window 0.9 m wide",
+              below=DEEP, **house), m)
+
+    m = Mesh()
+    ground(m, hole=(0.4, 1.6, 0.0, DOOR))
+    door(m, 0.4, 1.6, DOOR)
+    add(Piece("house_door", (1, 2, 1), "a building's ground-storey wall with a door 1.2 m wide",
+              below=DEEP, passages=[dict(axis="z", u=[0.4, 1.6], y=[0, DOOR])], **house), m)
+
+    m = Mesh()
+    ground(m, x1=2 * C, hole=(0.5, 2 * C - 0.5, 0.0, 3.0))
+    door(m, 0.5, 2 * C - 0.5, 3.0, post=0.15)
+    add(Piece("house_door_wide", (2, 2, 1), "a building's ground-storey wall with a cart door 3 m wide",
+              below=DEEP, passages=[dict(axis="z", u=[0.5, 2 * C - 0.5], y=[0, 3.0])], **house), m)
+
+    m = Mesh()
+    corner(m, "ground")
+    add(Piece("house_corner", (1, 2, 1), "a building's ground-storey corner: walls on the -z and -x edges",
+              below=DEEP, **house), m)
+
+    m = Mesh()
+    m.box((0, -DEEP, 0), (FW, 0.2, FW), "footing", skip=("-y",))
+    m.box((0, 0.2, WO), (WI - WO, H, WI), "frame", skip=("-y",))
+    m.box((WI - WO, H - 0.4, WO), (C, H, WI), "frame", skip=("-x",))
+    add(Piece("house_post", (1, 2, 1), "an open side of a building: a post at the -x end and a beam along the -z edge",
+              below=DEEP, **house), m)
+
+    # Upper storeys.
+    m = Mesh()
+    upper(m)
+    add(Piece("house_wall_upper", (1, 2, 1), "an upper storey's wall along the -z edge, with the floor's edge inside",
+              walk=up_walk, **house), m)
+
+    m = Mesh()
+    upper(m, hole=(0.55, 1.45, SILL, HEAD))
+    window(m)
+    add(Piece("house_window_upper", (1, 2, 1), "an upper storey's wall with a window, and the floor's edge inside",
+              walk=up_walk, **house), m)
+
+    m = Mesh()
+    corner(m, "upper")
+    add(Piece("house_corner_upper", (1, 2, 1), "an upper storey's corner: walls on the -z and -x edges, the floor inside",
+              walk=[dict(x=[FW, C], z=[FW, C], y=[PLANK, PLANK])], **house), m)
+
+    m = Mesh()
+    m.box((0, 0, WO), (C, C, WI), "upper")
+    add(Piece("gable", (1, 1, 1), "a plain wall along the -z edge, one cell high: a gable end under a roof", **house), m)
+
+    # Roofs: 45 degree courses. The underside runs through each cell's front bottom edge.
+    def roof(name, about, course, end):
+        m = Mesh()
+        x = (-VERGE if end == "l" else 0.0, C + VERGE if end == "r" else C)
+        caps = {"": ("-x", "+x"), "l": ("+x",), "r": ("-x",)}[end]
+        if course == "ridge":
+            half = C / 2
+            # Two halves meeting at the ridge; edges in order: underside, ridge, top, front.
+            m.prism([(0, 0), (half, half), (half, half + SLAB), (0, SLAB)],
+                    x, ["frame", "frame", "roof", "frame", "frame"], skip=(1, 3) + caps, slope=(2,))
+            m.prism([(half, half), (C, 0), (C, SLAB), (half, half + SLAB)],
+                    x, ["frame", "frame", "roof", "frame", "frame"], skip=(1, 3) + caps, slope=(2,))
+            gable = [(0, 0), (C, 0), (half, half)]
+        else:
+            z0 = -EAVE if course == "eave" else 0.0
+            # Edges in order: underside, back (meets the next course), top, front (the fascia).
+            m.prism([(z0, z0), (C, C), (C, C + SLAB), (z0, z0 + SLAB)],
+                    x, ["frame", "frame", "roof", "frame", "frame"],
+                    skip=(1,) + ((3,) if course == "slope" else ()) + caps, slope=(2,))
+            gable = [(0, 0), (C, 0), (C, C)]
+        if course == "eave":
+            # The wall plate: closes the gap between the wall's top and the roof.
+            px = (WO if end == "l" else 0.0, C - WO if end == "r" else C)
+            m.prism([(WO, 0), (WI, 0), (WI, WI), (WO, WO)], px, ["frame"] * 5, skip=(0, 2, "-x", "+x"))
+        if end:
+            # The gable: the end wall up to the underside, in the end walls' plane.
+            gx = (WO, WI) if end == "l" else (C - WI, C - WO)
+            m.prism(gable, gx, ["upper"] * (len(gable) + 1), skip=tuple(range(len(gable))))
+        rests = {"eave": (), "slope": ("-z",), "ridge": ("-z", "+z")}[course]
+        add(Piece(name, (1, 1, 1), about, reach=EAVE, rests=rests, **house), m)
+
+    for course, about in (("eave", "the lowest course of a 45 degree roof, over the wall on its -z edge, with the eaves"),
+                          ("slope", "a course of a 45 degree roof rising toward +z, resting on the course below at -z"),
+                          ("ridge", "the middle course of a 45 degree roof over an odd number of cells: the ridge")):
+        for end, also in (("", ""), ("l", "; a gable closes its -x end"), ("r", "; a gable closes its +x end")):
+            roof(f"roof_{course}" + (f"_{end}" if end else ""), about + also, course, end)
+
+
+SIDE_TURN = {"-z": 0, "-x": 1, "+z": 2, "+x": 3}
+CORNER_TURN = {("-z", "-x"): 0, ("-z", "+x"): 3, ("+z", "+x"): 2, ("+z", "-x"): 1}
+
+
+def house(at, size, storeys=1, doors=(), windows=(), open_sides=(), stairs=None) -> list:
+    """Lay out a small building with a gable roof as `[(piece, (i, j, k), turn)]`.
+
+    `at` is its corner cell (lowest i, j and k); `size` is `(w, d)` cells along x and z, each at
+    least 2; the ridge runs along x. A storey is two cells. The other arguments name places on
+    the walls by side (`-z`, `+z`, `-x`, `+x`) and by cell along that side, counted from its
+    lowest i or k (0 and the last are the corners):
+
+    - `doors`: `(side, n)` or `(side, n, "wide")`, on the ground storey (a wide door takes
+      cells n and n + 1);
+    - `windows`: `(side, n, storey)`, storey 0 the ground;
+    - `open_sides`: sides whose ground storey is posts and a beam instead of a wall;
+    - `stairs`: `(a, b)`, two flights rising along +x from interior cell (a, b) to the first
+      upper floor, on a stone block under the second flight.
+    """
+    (i0, j0, k0), (w, d) = at, size
+    if w < 2 or d < 2:
+        raise ValueError("a building is at least 2 cells each way")
+    out = []
+    cells_of = {"-z": [(i0 + n, k0) for n in range(w)], "+z": [(i0 + n, k0 + d - 1) for n in range(w)],
+                "-x": [(i0, k0 + n) for n in range(d)], "+x": [(i0 + w - 1, k0 + n) for n in range(d)]}
+    door_at = {}
+    for dr in doors:
+        door_at[(dr[0], dr[1])] = "house_door_wide" if len(dr) > 2 and dr[2] == "wide" else "house_door"
+        if door_at[(dr[0], dr[1])] == "house_door_wide":
+            door_at[(dr[0], dr[1] + 1)] = None
+    win = {(s, n, st) for s, n, st in windows}
+    for st in range(storeys):
+        j = j0 + 2 * st
+        low = st == 0
+        for (a, b), t in CORNER_TURN.items():
+            ci = i0 if "-x" in (a, b) else i0 + w - 1
+            ck = k0 if "-z" in (a, b) else k0 + d - 1
+            out.append(("house_corner" if low else "house_corner_upper", (ci, j, ck), t))
+        for side, cells in cells_of.items():
+            for n, (ci, ck) in enumerate(cells[1:-1], start=1):
+                if low and (side, n) in door_at:
+                    if door_at[(side, n)]:
+                        out.append((door_at[(side, n)], (ci if side[1] == "z" else ci, j, ck), SIDE_TURN[side]))
+                    continue
+                if low and side in open_sides:
+                    piece = "house_post"
+                elif (side, n, st) in win:
+                    piece = "house_window" if low else "house_window_upper"
+                else:
+                    piece = "house_wall" if low else "house_wall_upper"
+                out.append((piece, (ci, j, ck), SIDE_TURN[side]))
+    well = set()
+    if stairs and storeys > 1:
+        a, b = stairs
+        out += [("stairs", (i0 + a, j0, k0 + b), 1), ("stairs", (i0 + a + 2, j0 + 1, k0 + b), 1),
+                ("wall", (i0 + a + 2, j0, k0 + b), 0), ("wall", (i0 + a + 3, j0, k0 + b), 0)]
+        well = {(i0 + a + n, k0 + b) for n in range(4)}
+    for st in range(1, storeys):
+        for ci in range(i0 + 1, i0 + w - 1):
+            for ck in range(k0 + 1, k0 + d - 1):
+                if (ci, ck) not in well or st > 1:
+                    out.append(("floor", (ci, j0 + 2 * st, ck), 0))
+    r0 = j0 + 2 * storeys
+    n = d // 2
+
+    def end(ci, flip=False):
+        e = "_l" if ci == i0 else "_r" if ci == i0 + w - 1 else ""
+        return {"_l": "_r", "_r": "_l"}.get(e, e) if flip else e
+
+    for c in range(n):
+        course = "roof_eave" if c == 0 else "roof_slope"
+        for ci in range(i0, i0 + w):
+            out.append((course + end(ci), (ci, r0 + c, k0 + c), 0))
+            out.append((course + end(ci, flip=True), (ci, r0 + c, k0 + d - 1 - c), 2))
+        for ck in range(k0 + c + 1, k0 + d - 1 - c):
+            out.append(("gable", (i0, r0 + c, ck), 1))
+            out.append(("gable", (i0 + w - 1, r0 + c, ck), 3))
+    if d % 2:
+        for ci in range(i0, i0 + w):
+            out.append(("roof_ridge" + end(ci), (ci, r0 + n, k0 + n), 0))
     return out
 
 
@@ -435,8 +763,9 @@ def _passage_on(pp: dict, side: str, u, v, o, C) -> bool:
 def check_piece(p: Piece, C: float) -> list[dict]:
     tris, normals = p.mesh.triangles()
     w, h, d = p.cells
-    box_lo = np.array([0, -p.below, 0])
-    box_hi = np.array([w * C, h * C, d * C])
+    r = p.reach
+    box_lo = np.array([-r, -max(p.below, r), -r])
+    box_hi = np.array([w * C + r, h * C + r, d * C + r])
     pts = tris.reshape(-1, 3)
     lo, hi = pts.min(0), pts.max(0)
     checks = []
@@ -525,6 +854,11 @@ def occupied(cells, at, t):
     return [tuple(int(v) for v in np.floor(q - shift + np.asarray(at))) for q in pts]
 
 
+# Different partial profiles that are made to meet: a floor and the floor's edge an upper
+# storey's wall carries.
+MEETS = {frozenset(("floor", "house"))}
+
+
 def check_arrangement(pieces: dict[str, Piece], manifest_faces: dict, test: list, C: float) -> list[dict]:
     """No two pieces in one cell; no passage onto a solid face; no two different partial
     profiles meeting."""
@@ -559,7 +893,8 @@ def check_arrangement(pieces: dict[str, Piece], manifest_faces: dict, test: list
             continue
         if "passage" in (kind, k2) and "solid" in (kind, k2):
             bad.append(f"passage onto solid at {c} {side}")
-        elif kind != k2 and "solid" not in (kind, k2) and "passage" not in (kind, k2):
+        elif kind != k2 and "solid" not in (kind, k2) and "passage" not in (kind, k2) \
+                and frozenset((kind, k2)) not in MEETS:
             bad.append(f"{kind} meets {k2} at {c} {side}")
     checks.append(dict(name="test: faces meet", ok=not bad, value=len(bad), limit="0", detail=sorted(set(bad))[:8]))
     return checks
@@ -638,17 +973,19 @@ def read_piece(path) -> Mesh:
 
 
 def manifest_entry(p: Piece, fs: list[dict], parts: list[str]) -> dict:
-    return dict(file=f"{p.name}.gltf", about=p.about, cells=list(p.cells), below=p.below, parts=parts,
-                faces=[{k: f[k] for k in ("cell", "side", "kind")} for f in fs],
+    return dict(file=f"{p.name}.gltf", about=p.about, cells=list(p.cells), below=p.below, reach=p.reach,
+                rests=list(p.rests), parts=parts, faces=[{k: f[k] for k in ("cell", "side", "kind")} for f in fs],
                 walk=p.walk, passages=p.passages)
 
 
 def piece_meta(p: Piece) -> dict:
     """What `build` hands `frame` besides the mesh."""
     return dict(cells=list(p.cells), about=p.about, below=p.below, solid=list(p.solid), walk=p.walk,
-                passages=p.passages, profile=p.profile, parts=list(p.mesh.parts))
+                passages=p.passages, profile=p.profile, parts=list(p.mesh.parts), reach=p.reach,
+                rests=list(p.rests))
 
 
 def piece_from(name: str, meta: dict, mesh: Mesh) -> Piece:
     return Piece(name, tuple(meta["cells"]), meta["about"], meta["below"], tuple(meta["solid"]),
-                 meta["walk"], meta["passages"], meta["profile"], mesh)
+                 meta["walk"], meta["passages"], meta["profile"], mesh, meta.get("reach", 0.0),
+                 tuple(meta.get("rests", ())))

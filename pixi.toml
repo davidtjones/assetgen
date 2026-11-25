@@ -38,6 +38,10 @@ prop = "python -m props.scripts.prop"
 concept = "python -m concepts.scripts.concept"
 # Paint a blockout: pictures of a build in the game, repainted as the finished place. `pixi run paint --help`.
 paint = "python -m concepts.scripts.paint"
+# A building's materials from its painting, through the material library. `pixi run looks --help`.
+looks = "python -m concepts.scripts.looks"
+# The material library: its service and commands. `pixi run library --help`.
+library = "python -m textures.scripts.library"
 
 [dependencies]
 python = "3.12.*"

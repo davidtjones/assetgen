@@ -122,6 +122,38 @@ pixi run paint <plan> --no-mask                              # keep the whole pa
   times its block's height and a house overlapping the wall, and the paste cut both off. Given
   the mask while it paints, it fits each part inside it.
 
+## Materials from a painting
+
+`pixi run looks` dresses a building in a painted block from its painting: for each slot of the
+kit (wall, roof, footing, frame...) a material from the material library
+(`textures/README.md`), tinted to the painting's colour, so the painting decides how the
+building looks and nobody draws a material by hand.
+
+```sh
+pixi run looks <paint run dir> hall --game
+# then, in the game, the lines it writes to looks/hall/looks.con:
+build.look colfort-hall wall stone-coursed-blocks-1 3.0 0.1442 0.1447 0.1378
+```
+
+1. **Crops.** The block from the painted view it is biggest in, with the colour of the game's
+   light taken out, and each slot's part of it.
+2. **Words.** One agent call (`common/agent.py`, Claude Code headless today) is shown the crops
+   and answers each slot in the library's words: kind and pattern, finish, colour, detail, and
+   whether it is the same material as another slot (a footing of the walls' stone).
+3. **Colour.** Each slot's colour is the median of the pixels the painter changed in its part;
+   a door's is taken from its upper half.
+4. **Material.** The library resolves each description: a match it has (seconds), or a new
+   material it draws (about a minute).
+5. **Into the game.** `looks.json` and `looks.con` hold each slot's material, tile size and
+   tint; `--game` exports the materials to `../game3d/assets/materials/`.
+
+On the col fort, a second run's descriptions of the same three paintings matched the library's
+materials 8 times of 9, and the three buildings' 12 slots use 9 materials.
+
+An earlier version had klein redraw the slot's crop of the painting as a material. That copied
+the building into it: window frames, eaves and planks ended up in the tiles, and every building
+drew its own slightly different slate. `scripts/looks.py`'s docstring is the reference.
+
 ## The model
 
 Qwen-Image-Edit-2511 (int8, Apache 2.0) with the Lightning 4-step LoRA, run in ComfyUI. The

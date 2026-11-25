@@ -34,8 +34,11 @@ one generated object (`kit.py` holds the pieces, the grid and the checks). Its s
 3. `export` - copy the pieces into `../game3d/assets/kits/<name>/` and write `kit.json` there:
    the grid, every piece's cells and faces, and the test arrangement.
 
-Kit spec keys: `cell` (metres per grid cell), `colors` (sRGB per surface kind: `stone`,
-`wood`, `roof`) and `test` (a list of `[piece, [i, j, k], turn]`).
+Kit spec keys: `cell` (metres per grid cell), `colors` (the default sRGB of each slot:
+`footing`, `wall`, `upper`, `frame`, `floor`, `roof`), `inherit` (slot -> the slot whose
+material it takes when its structure gives it none), `test` (a list of `[piece, [i, j, k],
+turn]`) and
+`houses` (small buildings added to the test arrangement, each the arguments of `kit.house`).
 """
 
 from __future__ import annotations
@@ -188,7 +191,13 @@ def stage_build(spec: dict, seed: int) -> None:
 
 
 def test_list(spec: dict) -> list:
-    return [(name, tuple(at), int(t)) for name, at, t in spec.get("test", [])]
+    """The spec's test arrangement: its `test` pieces, then each of its `houses` laid out by
+    `kit.house` (each entry is that function's arguments)."""
+    out = [(name, tuple(at), int(t)) for name, at, t in spec.get("test", [])]
+    for h in spec.get("houses", []):
+        args = {k: v for k, v in h.items() if k != "name"}
+        out += [(name, tuple(at), int(t)) for name, at, t in kit.house(**args)]
+    return out
 
 
 def load_pieces(d: Path) -> dict:
@@ -281,6 +290,7 @@ def stage_kit_export(spec: dict, seed: int, force: bool = False) -> None:
         p = kit.piece_from(name, m, None)
         pieces[name] = kit.manifest_entry(p, report["faces"][name], m["parts"])
     manifest = {"kit": spec["name"], "cell": float(spec["cell"]), "colors": spec["colors"],
+                "inherit": spec.get("inherit", {}),
                 "_about": "written by assetgen props (kit); the format is in assetgen/props/scripts/kit.py",
                 "pieces": pieces, "test": [[n, list(at), t] for n, at, t in test_list(spec)]}
     (game / "kit.json").write_text(json.dumps(manifest, indent=1) + "\n")

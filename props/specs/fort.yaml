@@ -1,12 +1,43 @@
-# A plain stone fort: the first structure kit (GAM-34). Pieces are made by code
-# (props/scripts/kit.py); this spec picks the grid, the colours and the test arrangement.
+# The fort kit: walls, towers, gates and stairs (GAM-34), and the walls, openings and roofs
+# of small buildings (GAM-49). Pieces are made by code (props/scripts/kit.py); this spec picks
+# the grid, the default colours and the test arrangement.
 #   pixi run prop all fort
 kind: kit
 cell: 2.0             # metres per grid cell, on every axis
-colors:               # sRGB 0..255, one per surface kind
-  stone: [128, 124, 116]
-  wood: [112, 80, 52]
+colors:               # sRGB 0..255, the default look of each slot (a structure can give its own)
+  footing: [118, 114, 106]
+  wall: [128, 124, 116]
+  upper: [128, 124, 116]
+  frame: [112, 80, 52]
+  floor: [132, 100, 66]
   roof: [74, 80, 92]
+inherit:              # a slot a structure gives no material takes this slot's
+  upper: wall
+  footing: wall
+
+# Small buildings beside the fort, laid out by kit.house: a barracks, a stable open on its
+# front, and a hall of two storeys with stairs inside, over a ridge course (5 cells deep).
+houses:
+  - name: barracks
+    at: [16, 0, 0]
+    size: [6, 4]
+    doors: [["-z", 2]]
+    windows: [["-z", 1, 0], ["-z", 4, 0], ["+z", 1, 0], ["+z", 2, 0], ["+z", 3, 0], ["+z", 4, 0],
+              ["-x", 1, 0], ["+x", 2, 0]]
+  - name: stable
+    at: [24, 0, 0]
+    size: [6, 4]
+    open_sides: ["-z"]
+    doors: [["+x", 1, "wide"]]
+    windows: [["+z", 2, 0], ["+z", 3, 0]]
+  - name: hall
+    at: [32, 0, 0]
+    size: [6, 5]
+    storeys: 2
+    doors: [["-z", 2]]
+    windows: [["-z", 4, 0], ["+z", 2, 0], ["+z", 3, 0], ["-z", 1, 1], ["-z", 2, 1], ["-z", 3, 1],
+              ["-z", 4, 1], ["+z", 1, 1], ["+z", 4, 1], ["-x", 2, 1], ["+x", 2, 1]]
+    stairs: [1, 2]
 
 # The test arrangement: [piece, [i, j, k], turn]. A corner tower, a curtain wall each way
 # from it with a wall-walk and battlements, a gate, a postern door, and two flights of

@@ -1,0 +1,105 @@
+# The words a library material is described in: its kind, then its pattern.
+#
+# Two materials can only match when their kind and pattern are the same, so these lists are
+# the coarse half of matching; the description's free words are the fine half. Add a kind or
+# a pattern here when a painting shows something none of them fits; renaming one orphans the
+# materials made under the old name.
+#
+# Each pattern says:
+#   draw    what FLUX.2 klein is asked to photograph (the description's words are added to it)
+#   runs    which way its courses run on the tile: `rows` (up it: stone courses, rows of
+#           slates), `columns` (across it: boards side by side) or `none`
+#   course  metres from one course to the next: a stone course's height, a board's width,
+#           the rows of a roof up its slope. The tile is sized from it: as many courses as
+#           klein drew, each this big.
+#   tile    metres to one repeat, for a pattern with no courses (`runs: none`)
+
+stone:
+  coursed blocks:
+    draw: a wall of roughly squared stone blocks laid in level courses with mortar joints
+    runs: rows
+    course: 0.3
+  ashlar:
+    draw: a wall of smooth dressed ashlar blocks in level courses with thin joints
+    runs: rows
+    course: 0.4
+  rubble:
+    draw: a wall of irregular rubble stones of mixed sizes set in mortar
+    runs: none
+    tile: 2.0
+  flagstones:
+    draw: a floor of large flat flagstones with joints between them
+    runs: none
+    tile: 2.5
+  cobbles:
+    draw: a road of rounded cobblestones packed close together
+    runs: none
+    tile: 2.0
+
+brick:
+  coursed bricks:
+    draw: a wall of bricks laid in level courses with mortar joints
+    runs: rows
+    course: 0.075
+
+timber:
+  vertical boards:
+    draw: timber boards standing side by side, their grain running up them
+    runs: columns
+    course: 0.2
+  horizontal boards:
+    draw: horizontal timber weatherboards, each overlapping the one below
+    runs: rows
+    course: 0.2
+  logs:
+    draw: a wall of round logs laid one on another
+    runs: rows
+    course: 0.3
+  planks:
+    draw: a floor of long timber planks side by side
+    runs: columns
+    course: 0.2
+  beam:
+    draw: the face of a large squared timber beam, its grain running along it
+    runs: none
+    tile: 1.5
+
+slate:
+  rows:
+    draw: a roof of overlapping rectangular slates laid in rows, the joints between slates staggered from row to row
+    runs: rows
+    course: 0.25
+
+shingle:
+  rows:
+    draw: a roof of overlapping wooden shingles laid in rows, the gaps between shingles staggered from row to row
+    runs: rows
+    course: 0.25
+
+clay tile:
+  rows:
+    draw: a roof of overlapping curved clay tiles laid in rows
+    runs: rows
+    course: 0.25
+
+thatch:
+  thatch:
+    draw: a thick thatched roof of straw laid in bundles
+    runs: none
+    tile: 2.0
+
+plaster:
+  plaster:
+    draw: a wall of lime plaster
+    runs: none
+    tile: 2.0
+
+earth:
+  packed earth:
+    draw: packed bare earth, trodden flat
+    runs: none
+    tile: 2.0
+  gravel:
+    draw: a path of loose small gravel
+    runs: none
+    tile: 2.0

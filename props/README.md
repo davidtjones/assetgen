@@ -69,24 +69,40 @@ onto a solid face, and no two different partial profiles meet. `kit.json`
 records each piece's cells and what each of its outward faces is, so a builder
 can tell what fits next to what without looking.
 
+**Slots.** Each part of a piece is one slot, the part of a building it is:
+`footing`, `wall`, `upper` (an upper storey and the gables), `frame` (doors,
+windows, posts), `floor` or `roof`. The kit gives each slot a flat colour; in the
+game a structure names a material for each slot (`build.look`), made from its
+painting by `pixi run looks` (`concepts/README.md`).
+
+**Small buildings.** `kit.house(at, size, storeys, doors, windows, open_sides,
+stairs)` lays out a gable-roofed building from the house pieces (walls, windows,
+doors, corners, posts, upper-storey walls, gables, and 45 degree roof courses),
+as `[piece, cell, turn]` entries. A kit spec's `houses` list adds them to the test
+arrangement.
+
 ```yaml
 kind: kit
 cell: 2.0                       # metres per grid cell
-colors:                         # sRGB per surface kind
-  stone: [128, 124, 116]
-  wood: [112, 80, 52]
+colors:                         # sRGB per slot
+  wall: [128, 124, 116]
+  frame: [112, 80, 52]
   roof: [74, 80, 92]
+inherit:                        # a slot with no material takes this slot's
+  upper: wall
 test:                           # [piece, [i, j, k], turn]
   - [tower_base, [0, 0, 0], 2]
   - [wall, [3, 0, 0], 0]
+houses:                         # kit.house arguments, added to the test arrangement
+  - {name: stable, at: [24, 0, 0], size: [6, 4], open_sides: ["-z"], doors: [["+x", 1, "wide"]]}
 ```
 
 `scripts/kit.py`'s docstring is the reference for the grid, turns, the manifest
 and the checks; the pieces themselves are in `build_pieces`.
 
-**Limits.** Pieces are flat-coloured boxes and extrusions, one material per
-surface kind; the game makes its own material per kind, so they can be dressed
-in PBR materials later. Joins are checked by face kind, not by drawing the seam,
+**Limits.** Pieces are boxes and extrusions with flat colours per slot until a
+structure dresses them. Roofs are 45 degrees only, a storey is 4 m, and there is
+no lean-to layout yet. Joins are checked by face kind, not by drawing the seam,
 so two pieces whose faces both say `solid` are trusted to meet. A kit is one
 fixed set of pieces in code; there is no generated (concept and mesh) path for
 pieces yet.
