@@ -1,7 +1,7 @@
 """Paint a blockout: pictures of a build in the game, repainted as the finished place.
 
     pixi run paint <plan.toml> [--out <dir>] [--views a,b] [--seeds 0,1] [--pictures <dir>]
-                               [--brief paint|<file.yaml>] [--words] [--full]
+                               [--brief paint|<file.yaml>] [--words] [--full] [--no-mask]
 
 A builder runs this on its blockout (a site plan built with `plan.build`, its buildings still
 plain blocks) to see the place finished, from the same cameras, on the real land. Unlike a
@@ -14,7 +14,7 @@ takes it). Its `site` is the structure to paint.
 1. **Pictures.** Over the game's console socket, with the blocks' labels off:
    `site.shots <site>` (approach, north, east, south, west, above, inside) and `site.eye` for
    each of the plan's `[[view]]`s (a player's eye on the ground) -> `<out>/blockout/<n>-<view>.png`,
-   each with a `.json` from `site.seen` saying what it shows: how many of the structure's pieces,
+   each with a `.json` from `site.seen` saying what it shows and a `.mask.png` from `site.mask`: how many of the structure's pieces,
    and for each block how much, where on the picture, and whether its door is in sight. The game
    must be running with the blockout built. The blocks are drawn plain white and unnamed for the
    pictures (`blockout.colours off`, `blockout.labels off`): the model keeps a bright coloured
@@ -24,8 +24,14 @@ takes it). Its `site` is the structure to paint.
    towers (the plan's `finish`, a wall's or tower's own, else the brief's `default_finish`), and
    each block, a white box standing for its building, by where it stands, with its door: in
    sight, on a side out of sight, or none. Doors and gates are only where the blockout has a dark opening or an arch.
-3. **Paintings.** Qwen-Image-Edit-2511 repaints each picture per seed ->
-   `<out>/painted/<view>_s<seed>.png`.
+3. **Paintings.** Qwen-Image-Edit-2511 repaints each picture per seed, only inside the picture's
+   mask (`<n>-<view>.mask.png`, from `site.mask`: where the camera sees the structure). The mask
+   is grown a few pixels, raised above each block for a pitched roof painted on a flat box, and
+   feathered -> `<out>/masks/<view>.png`. The model is given it as a noise mask, so at every step
+   the land, rocks and sky round the structure are put back as the game drew them, and it cannot
+   add a building outside the structure; then the painting is laid over the picture through the
+   same mask, so no pixel outside it changes -> `<out>/painted/<view>_s<seed>.png`; the model's
+   own output -> `<out>/painted/raw/<view>_s<seed>.png`. `--no-mask` paints the whole picture.
 4. **Sheet.** `<out>/sheet.png`: one row per view, the blockout and then each painting.
    `<out>/paint.json` records the plan, each view's prompt, the model settings and the times.
 
@@ -57,6 +63,12 @@ from concepts.scripts.concept import BRIEFS, FAST, FULL, OUT, QWEN, edit_workflo
 SHOTS = ["approach", "north", "east", "south", "west", "above", "inside"]
 # Smaller than this share of the picture, a part is not worth a sentence.
 TINY = 0.0005
+# The mask: grown by this many of its cells all round (a cell is 4 px of a 1280 px picture),
+# raised above each block by this share of the block's height on the picture (room for a pitched
+# roof on a flat box), and feathered by this share of the picture's width.
+GROW = 4
+ROOF = 0.7
+FEATHER = 0.006
 
 
 def find_plan(path: str) -> Path:
@@ -188,6 +200,34 @@ def words_for(plan: dict, brief: dict, seen: dict) -> str:
     )
 
 
+def paint_mask(picture: Path, seen: dict, size: tuple[int, int]):
+    """Where a painting may change its picture, 0-255 at `size`: the structure as the game saw it
+    (`site.mask`), raised above each block, grown and feathered. None when there is no mask."""
+    from PIL import Image, ImageDraw, ImageFilter
+    path = picture.with_suffix(".mask.png")
+    if not path.exists():
+        return None
+    small = Image.open(path).convert("L")
+    w, h = small.size
+    draw = ImageDraw.Draw(small)
+    for b in seen["blocks"]:
+        if b["box"] and b["seen"] > 0:
+            left, top, right, bottom = b["box"]
+            up = ROOF * (bottom - top)
+            draw.rectangle([left * w, (top - up) * h, right * w, top * h + 1], fill=255)
+    small = small.filter(ImageFilter.MaxFilter(2 * GROW + 1))
+    big = small.resize(size, Image.BILINEAR)
+    return big.filter(ImageFilter.GaussianBlur(FEATHER * size[0]))
+
+
+def lay_over(painted: Path, blockout: Path, mask, out: Path) -> None:
+    """The painting inside the mask, the blockout picture outside it -> `out`."""
+    from PIL import Image
+    base = Image.open(blockout).convert("RGB")
+    paint = Image.open(painted).convert("RGB").resize(base.size, Image.LANCZOS)
+    Image.composite(paint, base, mask).save(out)
+
+
 def contact_sheet(out: Path, pictures: dict[str, Path], views: list[str], seeds: list[int]) -> Path:
     """One row per view: the blockout, then each seed's painting, labelled."""
     from PIL import Image, ImageDraw
@@ -216,6 +256,7 @@ def main() -> None:
     ap.add_argument("--brief", default="paint", help="a name in concepts/briefs/ (default: paint), or a path to a YAML file")
     ap.add_argument("--words", action="store_true", help="print each view's prompt and stop: no painting")
     ap.add_argument("--full", action="store_true", help="40 steps without the Lightning LoRA (slower, a little crisper)")
+    ap.add_argument("--no-mask", action="store_true", help="keep the whole painting, not only the structure")
     args = ap.parse_args()
 
     plan_path = find_plan(args.plan)
@@ -234,27 +275,50 @@ def main() -> None:
     missing = [v for v in views if v not in pictures]
     if missing:
         sys.exit(f"no pictures for {missing} in {folder} (have: {', '.join(pictures)})")
-    prompts = {v: words_for(plan, brief, json.loads(pictures[v].with_suffix(".json").read_text())) for v in views}
+    seens = {v: json.loads(pictures[v].with_suffix(".json").read_text()) for v in views}
+    prompts = {v: words_for(plan, brief, seens[v]) for v in views}
     if args.words:
         for v in views:
             print(f"[{v}] {prompts[v]}\n")
         return
 
     settings = FULL if args.full else FAST
-    (out / "painted").mkdir(parents=True, exist_ok=True)
+    from PIL import Image
+    (out / "painted" / "raw").mkdir(parents=True, exist_ok=True)
+    masks = {}
+    if not args.no_mask:
+        (out / "masks").mkdir(exist_ok=True)
+        masks = {v: paint_mask(pictures[v], seens[v], Image.open(pictures[v]).size) for v in views}
+        for v, m in masks.items():
+            if m is not None:
+                m.save(out / "masks" / f"{v}.png")
+        unmasked = [v for v in views if masks[v] is None]
+        if unmasked:
+            print(f"[paint] no mask for {', '.join(unmasked)}: those are painted whole (pictures from before site.mask?)")
     client = comfy(out)
     record = {"plan": str(plan_path), "site": site, "brief": str(brief_path), "pictures": str(folder),
-              "model": {**QWEN, **settings}, "views": {v: {"prompt": prompts[v], "images": []} for v in views}}
+              "model": {**QWEN, **settings}, "mask": None if args.no_mask else {"grow": GROW, "roof": ROOF, "feather": FEATHER},
+              "views": {v: {"prompt": prompts[v], "images": []} for v in views}}
     for view in views:
         uploaded = client.upload_image(pictures[view], name=f"paint_{site}_{view}.png")["name"]
+        mask = None
+        if masks.get(view) is not None:
+            mask = client.upload_image(out / "masks" / f"{view}.png", name=f"paint_{site}_{view}_mask.png")["name"]
         for seed in seeds:
             stem = f"{view}_s{seed}"
             t0 = time.time()
-            workflow = edit_workflow(uploaded, prompts[view], seed, f"paint/{site}_{stem}", settings)
-            fetch(client, run_workflow(client, workflow, 1800), f"{site}_{stem}", out / "painted" / f"{stem}.png")
+            workflow = edit_workflow(uploaded, prompts[view], seed, f"paint/{site}_{stem}", settings, mask)
+            raw = out / "painted" / "raw" / f"{stem}.png"
+            fetch(client, run_workflow(client, workflow, 1800), f"{site}_{stem}", raw)
+            final = out / "painted" / f"{stem}.png"
+            if masks.get(view) is not None:
+                lay_over(raw, pictures[view], masks[view], final)
+            else:
+                Image.open(raw).save(final)
             took = time.time() - t0
-            record["views"][view]["images"].append({"seed": seed, "file": f"painted/{stem}.png", "seconds": round(took, 1)})
-            print(f"[paint] {site} {view} seed {seed}: {out / 'painted' / (stem + '.png')} ({took:.0f} s)")
+            record["views"][view]["images"].append({"seed": seed, "file": f"painted/{stem}.png", "raw": f"painted/raw/{stem}.png",
+                                                    "masked": masks.get(view) is not None, "seconds": round(took, 1)})
+            print(f"[paint] {site} {view} seed {seed}: {final} ({took:.0f} s)")
     (out / "paint.json").write_text(json.dumps(record, indent=2) + "\n")
     print(f"[sheet] {contact_sheet(out, pictures, views, seeds)}")
 

@@ -78,6 +78,7 @@ pixi run paint scripts/plans/col-blocks.toml                 # plan path from he
 pixi run paint <plan> --out <dir> --views gate,yard --seeds 0
 pixi run paint <plan> --pictures <dir>/blockout              # reuse pictures; no game needed
 pixi run paint <plan> --pictures <dir>/blockout --words      # print each view's prompt, paint nothing
+pixi run paint <plan> --no-mask                              # keep the whole painting, land and all
 ```
 
 1. **Pictures.** With the blocks plain white and unnamed (`blockout.colours off`,
@@ -85,7 +86,8 @@ pixi run paint <plan> --pictures <dir>/blockout --words      # print each view's
    plan's `[[view]]`s (a player's eye on the ground: `name`, `at`, `toward`, in plan metres)
    -> `<out>/blockout/<n>-<view>.png`. Beside each is a `.json` from `site.seen`: how much of the
    structure is in sight, and for each block how much, where on the picture, and whether its
-   door shows, traced through what is drawn.
+   door shows, traced through what is drawn; and a `.mask.png` from `site.mask`: where the
+   picture shows the structure, traced the same way.
 2. **Words.** One prompt per picture: what the site is for (the first sentence of its
    programme's role), then one sentence per part in sight, biggest first. The walls and towers
    take the plan's `finish` (or a wall's or tower's own); each block is "the plain white box
@@ -93,8 +95,14 @@ pixi run paint <plan> --pictures <dir>/blockout --words      # print each view's
    with its door: in sight ("the dark opening on it"), on a side out of sight, or none. Doors
    and gates are only where the blockout has a dark opening or an arch. The frame of the prompt
    is `briefs/paint.yaml`.
-3. **Paintings.** -> `<out>/painted/<view>_s<seed>.png`, and `<out>/sheet.png` with each
-   blockout picture beside its paintings. `<out>/paint.json` records every prompt.
+3. **Paintings.** Only the structure is painted. The mask is grown a few pixels, raised above
+   each block (room for a pitched roof on a flat box) and feathered -> `<out>/masks/<view>.png`.
+   The model gets it as a noise mask: at every step the land, rocks and sky round the structure
+   are put back as the game drew them, so it paints the structure knowing what stands round it
+   and cannot add a building outside it. The painting is then laid over the picture through the
+   same mask, so no pixel outside it changes -> `<out>/painted/<view>_s<seed>.png`; the model's
+   own output -> `<out>/painted/raw/`. `<out>/sheet.png` has each blockout picture beside its
+   paintings. `<out>/paint.json` records every prompt.
 
 `--out` defaults to `concepts/out/<site>/paint`.
 
@@ -108,6 +116,11 @@ pixi run paint <plan> --pictures <dir>/blockout --words      # print each view's
   camera and all. With each part's finish written out, the walls, towers and each building kept
   their materials across all views and seeds.
 - **Only the parts in sight.** A part named but not in the picture gets drawn somewhere.
+- **A mask, not a request.** The prompt says "add no other buildings", and in far views the
+  model added one anyway, every time. A mask makes that impossible. Pasting the painting
+  through the mask afterwards was not enough on its own: the model still drew the keep three
+  times its block's height and a house overlapping the wall, and the paste cut both off. Given
+  the mask while it paints, it fits each part inside it.
 
 ## The model
 
@@ -131,8 +144,5 @@ are still in `tools/ComfyUI/models`.
   a horizon. The low and side views work.
 - **Size is only roughly followed.** The metres in `subject` help, but the drawn fort is
   not measured against anything.
-- **A painting of a far view invents.** Where the site is a small part of the picture (the
-  approach), the model added a building that is not in the blockout in both seeds tried. The
-  views from each side and from eye height kept to the blockout.
 - **`site.seen` counts a part by sampled points.** A wall a metre from the camera can fill the
   edge of the picture with none of its sample points on it; the eye views keep 2 m from walls.

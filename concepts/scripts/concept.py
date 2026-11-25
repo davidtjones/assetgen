@@ -63,13 +63,15 @@ FAST = {"steps": 4, "cfg": 1.0, "lora": True}
 FULL = {"steps": 40, "cfg": 3.0, "lora": False}
 
 
-def edit_workflow(photo: str, prompt: str, seed: int, prefix: str, settings: dict) -> dict:
+def edit_workflow(photo: str, prompt: str, seed: int, prefix: str, settings: dict, mask: str | None = None) -> dict:
     """The ComfyUI graph: Qwen-Image-Edit-2511 redraws `photo` (an uploaded input image) as the
     prompt says. This follows ComfyUI's own template
     for the model (`image_qwen_image_edit_2511_int8`): the photo is scaled to about a
     megapixel, encoded both as the starting latent and as Picture 1 of the prompt, and
     sampled with AuraFlow's shift and CFG normalisation. The negative prompt is empty, and at
-    cfg 1 it is not used at all."""
+    cfg 1 it is not used at all. With `mask` (an uploaded grey picture, white where the photo
+    may change), only that part is redrawn: at every step the rest is put back to the photo,
+    so the model paints inside the mask knowing what stands round it."""
     q = QWEN
     g: dict = {
         "photo": {"class_type": "LoadImage", "inputs": {"image": photo}},
@@ -91,8 +93,13 @@ def edit_workflow(photo: str, prompt: str, seed: int, prefix: str, settings: dic
     if settings["lora"]:
         g["lora"] = {"class_type": "LoraLoaderModelOnly", "inputs": {"model": model, "lora_name": q["lora"], "strength_model": 1.0}}
         model = ["lora", 0]
+    latent = ["start", 0]
+    if mask:
+        g["mask"] = {"class_type": "LoadImageMask", "inputs": {"image": mask, "channel": "red"}}
+        g["masked"] = {"class_type": "SetLatentNoiseMask", "inputs": {"samples": latent, "mask": ["mask", 0]}}
+        latent = ["masked", 0]
     g["sample"] = {"class_type": "KSampler", "inputs": {
-        "model": model, "positive": ["positive_refs", 0], "negative": ["negative_refs", 0], "latent_image": ["start", 0],
+        "model": model, "positive": ["positive_refs", 0], "negative": ["negative_refs", 0], "latent_image": latent,
         "seed": seed, "steps": settings["steps"], "cfg": settings["cfg"], "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}}
     g["decode"] = {"class_type": "VAEDecode", "inputs": {"samples": ["sample", 0], "vae": ["vae", 0]}}
     g["save"] = {"class_type": "SaveImage", "inputs": {"images": ["decode", 0], "filename_prefix": prefix}}
