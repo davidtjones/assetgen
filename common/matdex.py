@@ -64,17 +64,10 @@ class Matdex:
         self._call("GET", "/health", timeout=5)
         return self
 
-    def vocabulary(self) -> dict:
-        """kind -> pattern -> {draw, runs, course, tile, materials}."""
-        return self._call("GET", "/vocabulary")[1]
-
     def description_schema(self) -> dict:
         """The JSON schema an agent answers a description in: `material` ("kind: pattern"),
         `finish`, `colour`, `detail`."""
         return self._call("GET", "/vocabulary/schema")[1]
-
-    def material(self, name: str) -> dict:
-        return self._call("GET", f"/materials/{_q(name)}")[1]
 
     def file(self, name: str, version: int, file: str, dest: Path) -> Path:
         """Download one of a version's files (`albedo.png`, `sheet.jpg`, ...) to `dest`."""

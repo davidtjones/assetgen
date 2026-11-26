@@ -134,31 +134,6 @@ def cavity(height: np.ndarray, radius: float) -> np.ndarray:
     return np.clip((blur(height, radius) - height) * 4.0, 0.0, 1.0)
 
 
-def load_material(d, n: int):
-    """A generated material dir (`pixi run material`) at `n` pixels: `(albedo,
-    normal, roughness, height)` as floats, the normal a unit vector (OpenGL).
-    Resampling wraps, so it still tiles."""
-    from pathlib import Path
-
-    from PIL import Image
-
-    def load(f, mode):
-        im = Image.open(Path(d) / f).convert(mode)
-        if im.size != (n, n):
-            # Tile 3x3, resize, keep the centre: the filter then sees wrapped neighbours.
-            w, h = im.size
-            big = Image.new(mode, (w * 3, h * 3))
-            for j in range(3):
-                for i in range(3):
-                    big.paste(im, (i * w, j * h))
-            im = big.resize((n * 3, n * 3), Image.LANCZOS).crop((n, n, 2 * n, 2 * n))
-        return np.asarray(im, np.float32) / 255.0
-
-    normal = load("normal.png", "RGB") * 2.0 - 1.0
-    normal /= np.maximum(np.linalg.norm(normal, axis=-1, keepdims=True), 1e-6)
-    return load("albedo.png", "RGB"), normal, load("roughness.png", "L"), load("height.png", "L")
-
-
 def recolour(albedo: np.ndarray, colour, hue: float = 0.33, contrast: float = 1.0) -> np.ndarray:
     """Give a generated albedo the game's colour: keep its pattern (brightness,
     and `hue` of its own colour variation) and make `colour` (sRGB 0..1) its

@@ -18,10 +18,6 @@ plants = "python -m foliage.scripts.generate_plants"
 rocks = "python -m rocks.scripts.generate_rocks"
 # Trees: meshes, atlases, impostors, manifest -> ../game3d/assets/trees/
 trees = "python -m trees.scripts.generate_trees"
-# Tileable PBR material candidates (FLUX.2 klein photo -> CHORD maps) with a lit preview -> textures/out/mat/
-material = "python -m textures.scripts.gen_material"
-# The older StableMaterials generator -> textures/out/sm/
-material-sm = "python -m textures.scripts.gen_material_sm"
 preview-foliage = { cmd = "python -m http.server 8000", cwd = "foliage/preview" }
 # Rock preview: open http://localhost:8001/ (meshes/ is symlinked into preview/).
 preview-rocks = { cmd = "python -m http.server 8001", cwd = "rocks/preview" }

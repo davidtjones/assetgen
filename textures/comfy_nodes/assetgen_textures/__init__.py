@@ -15,7 +15,7 @@ stays lined up with it.
 (`ChordMaterialEstimation`) scales every input to 1024 and the maps back,
 which leaves a faint regular line pattern in them when the input is another
 size, as it is when a tile is estimated with a margin round it
-(`gen_material.decompose`). The model is all convolutions and attention, so it
+(matdex's `draw.decompose`). The model is all convolutions and attention, so it
 takes any size that is a multiple of 64.
 """
 
