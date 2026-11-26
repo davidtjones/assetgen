@@ -9,7 +9,7 @@ Reads the prompt for `<name>` from `textures/prompts/materials.yaml` and writes
 one candidate per seed to `textures/out/sm/<name>_s<seed>/` as `albedo.png`,
 `normal.png`, `roughness.png`, `height.png`, plus `textures/out/sm/<name>.jpg`,
 a contact sheet of the albedos (each shown tiled 2x2 so seams and repetition
-are visible). Pick a keeper by naming it as a layer source in `bake_ground.py`.
+are visible). Bring a keeper into matdex with `uv run matdex import` to use it in the game.
 
 Same model and call as the `StableMaterialsSampler` ComfyUI node; this is the
 batch path for when you want several seeds side by side.

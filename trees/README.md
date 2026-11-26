@@ -18,11 +18,12 @@ The scripts, in `scripts/`:
   meshes, bark and foliage, at two levels of detail.
 - `tree_wood.py` - turns trunk, limbs and roots into one surface (a distance
   field meshed as a whole), decimated with Blender through `decimate_blender.py`.
-- `tree_textures.py` - bark (drawn, or taken from a `textures/` material named in
-  `GENERATED`, with an optional mossy overlay from `MOSSY`) and foliage cards.
+- `tree_textures.py` - bark (the matdex material for the use `trees/<kind>/bark` at its
+  tint, with a mossy overlay from `trees/<kind>/bark-mossy`; drawn when matdex has none) and
+  foliage cards. Revise a bark in matdex, then bake again.
 - `generate_trees.py` - the bake: meshes, textures, impostor atlases and the
   `trees.txt` manifest. Its docstring documents the manifest format.
 
-Needs `blender` on `PATH` for the decimation step. Bark taken from generated
-materials reads `textures/out/`, which is not in git; a missing material falls
-back to drawn bark.
+Needs `blender` on `PATH` for the decimation step. Bark is read from matdex beside this repo
+(`../matdex`, or `MATDEX_DIR`), from what its service last published (`data/current.json`); a
+bark kind with no use there, or no matdex at all, falls back to drawn bark.

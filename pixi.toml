@@ -16,8 +16,6 @@ blades = "python -m foliage.scripts.generate_geometry"
 # Undergrowth plants (fern, flower, heather, scrub) -> ../game3d/assets/meshes/plants/
 plants = "python -m foliage.scripts.generate_plants"
 rocks = "python -m rocks.scripts.generate_rocks"
-# Procedural terrain layers (grass, dirt, rock, scree, sand) -> ../game3d/assets/textures/terrain/
-ground = "python -m textures.scripts.bake_ground"
 # Trees: meshes, atlases, impostors, manifest -> ../game3d/assets/trees/
 trees = "python -m trees.scripts.generate_trees"
 # Tileable PBR material candidates (FLUX.2 klein photo -> CHORD maps) with a lit preview -> textures/out/mat/

@@ -1,12 +1,12 @@
 # Textures
 
-Tileable PBR material candidates and the terrain layers. The game's buildings are dressed from
-matdex (`../matdex`), the material library, which moved out of this repo; it draws through this
-repo's ComfyUI and its workflows here.
+Tileable PBR material candidates. Every material the game draws (buildings, terrain layers,
+bark, rocks) comes from matdex (`../matdex`), the material library, which moved out of this
+repo; it draws through this repo's ComfyUI and its workflows here. The game reads matdex in
+place and builds its terrain layers itself when it loads, so nothing here bakes for it.
 
 ```text
 pixi run material <name>... [--seeds 0 1] [--maps-only]   # generate candidates -> out/mat/
-pixi run ground [-- --size 512 --only rock]               # bake terrain layers -> ../game3d/assets/textures/terrain/
 pixi run material-sm <name> [--seeds ...]                 # the older StableMaterials generator -> out/sm/
 ```
 
@@ -16,11 +16,8 @@ pixi run material-sm <name> [--seeds ...]                 # the older StableMate
   estimates the maps, both through ComfyUI (started if it is not running). Writes
   `out/mat/<name>_s<seed>/` and a lit preview sheet `out/mat/<name>.jpg`. Its
   docstring is the CLI reference.
-- `scripts/bake_ground.py` - grades the generated materials named in `GENERATED`
-  to set colours and packs them into the arrays the terrain shader reads. A layer
-  whose material is missing falls back to a procedural one.
-- `scripts/gen_material_sm.py` - kept because some bark and ground in use came
-  from it; new materials come from `gen_material.py`.
+- `scripts/gen_material_sm.py` - the older StableMaterials generator, which some library
+  materials came from; new materials come from matdex.
 - `scripts/tex_core.py`, `scripts/preview.py` - shared tileable-noise helpers and
   the lit preview sheet (also used by `trees/`).
 - `workflows/` - the ComfyUI graphs; `workflows/README.md` documents them.

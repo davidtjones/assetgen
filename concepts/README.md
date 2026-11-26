@@ -130,7 +130,7 @@ kit (wall, roof, footing, frame...) a material from matdex, the material library
 building looks and nobody draws a material by hand.
 
 ```sh
-pixi run looks <paint run dir> hall --game
+pixi run looks <paint run dir> hall
 # then, in the game, the lines it writes to looks/hall/looks.con:
 build.look colfort-hall wall stone-coursed-blocks-1 3.0 0.1442 0.1447 0.1378
 ```
@@ -145,7 +145,7 @@ build.look colfort-hall wall stone-coursed-blocks-1 3.0 0.1442 0.1447 0.1378
 4. **Material.** The library resolves each description: a match it has (seconds), or a new
    material it draws (about a minute).
 5. **Into the game.** `looks.json` and `looks.con` hold each slot's material, tile size and
-   tint; `--game` exports the materials to `../game3d/assets/materials/`.
+   tint. The game reads matdex in place, so nothing is exported.
 
 On the col fort, a second run's descriptions of the same three paintings matched the library's
 materials 8 times of 9, and the three buildings' 12 slots use 9 materials.

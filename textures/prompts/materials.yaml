@@ -56,7 +56,7 @@ cobblestone:
     photograph from directly above of an old rough cobblestone road, large
     uneven worn stones with packed dirt between them
 
-# --- Terrain layers (bake_ground.py sources) --------------------------------
+# --- Terrain layers (sources of the terrain materials now in matdex) ------
 # Generated headless with `pixi run material <name>`; see textures/scripts/.
 
 cliff_strata:

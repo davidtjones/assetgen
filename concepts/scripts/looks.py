@@ -3,7 +3,7 @@ and frames made of, as materials from matdex, the material library, each with th
 the game dresses that building's slots in.
 
     pixi run looks <paint run dir> <block> [--view <view>] [--slots wall roof ...] [--painting 0]
-                   [--structure <name>] [--region <region>] [--game]
+                   [--structure <name>] [--region <region>]
 
 The paint step (`pixi run paint`) decides how each block of a site plan looks. This step turns
 that look into materials, so the building put up in the block wears what its painting showed,
@@ -34,8 +34,8 @@ and no one designs a material by hand.
    Every library material is colour-neutral; the building uses it tinted to the slot's colour,
    at the tile size the material's courses give it. Who uses it is recorded in the library as
    `<site>/<block>/<slot>`, with the region.
-5. **Into the game.** With `--game`, each material is exported to
-   `../game3d/assets/materials/<name>/`.
+5. **Into the game.** Nothing is copied: the game reads matdex in place, so a `build.look` line
+   naming a library material is all it needs.
 
 Writes `<run>/looks/<block>/`: `crop.png` and `<slot>.crop.png`, `describe/` (the agent's
 question and answer), `looks.json` (each slot's material, version, tint, tile size, and whether
@@ -284,7 +284,6 @@ def main() -> None:
     ap.add_argument("--painting", type=int, default=0, help="which seed's painting to crop (default 0)")
     ap.add_argument("--structure", help="the structure `looks.con` dresses (default <site>-<block>)")
     ap.add_argument("--region", help="the region the site is in, a biome or place name (default: the plan's `region`)")
-    ap.add_argument("--game", action="store_true", help="export each material into ../game3d/assets/materials/")
     a = ap.parse_args()
 
     run_dir = Path(a.run).resolve()
@@ -339,8 +338,6 @@ def main() -> None:
                        "tile_metres": hit["tile_metres"], "made": hit["made"], "similarity": hit["similarity"],
                        "same_as": same.get(slot), "colour": colour, "description": desc.as_dict()}
         print(f"    -> {hit['name']} v{hit['version']} ({how}), tint {hit['tint']}, a {hit['tile_metres']} m tile", flush=True)
-        if a.game and slot not in same:
-            print(f"    -> {lib.export(hit['name'])}", flush=True)
     looks = {s: looks[s] for s in a.slots}
     (out / "looks.json").write_text(json.dumps(looks, indent=2) + "\n")
     structure = a.structure or f"{run['site']}-{a.block}"
