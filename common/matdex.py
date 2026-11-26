@@ -56,8 +56,8 @@ class Matdex:
                 message = str(e)
             raise MatdexError(f"matdex {method} {path}: {message}") from None
         except urllib.error.URLError as e:
-            raise MatdexError(f"matdex is not running at {self.url} ({e.reason}); start it with "
-                              f"`uv run matdex serve` in the matdex repo") from None
+            raise MatdexError(f"matdex is not running at {self.url} ({e.reason}); it runs under the "
+                              f"workspace's services/ (`./svc status` there)") from None
 
     def check(self) -> Matdex:
         """This client, once the service has answered. Raises MatdexError if it is down."""

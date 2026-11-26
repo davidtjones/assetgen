@@ -44,7 +44,7 @@ class ComfyClient:
             raise ComfyError(f"{method} {path} -> HTTP {e.code}: {body[:2000]}") from None
         except urllib.error.URLError as e:
             raise ComfyError(
-                f"{method} {path} -> {e.reason} (is ComfyUI running? start it with `pixi run comfyui`)"
+                f"{method} {path} -> {e.reason} (is ComfyUI running? the workspace's services/ runs it: `./svc status` there)"
             ) from None
 
     def _get_json(self, path: str, params=None):

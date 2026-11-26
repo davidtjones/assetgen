@@ -47,7 +47,7 @@ The slots are the kit's (`assetgen/props/scripts/kit.py`): `footing`, `wall`, `u
 storey's walls and the gables), `frame`, `floor` and `roof`. By default it describes `wall`,
 `roof`, `footing` and `frame`.
 
-matdex's service must be running (`uv run matdex serve` in the matdex repo); this step stops
+matdex's service must be running (the workspace's `services/` runs it); this step stops
 with that hint when it is not.
 """
 
