@@ -1,5 +1,5 @@
-"""ComfyUI nodes for the texture pipeline. Lives in the repo; symlinked into
-`tools/ComfyUI/custom_nodes/assetgen_textures`.
+"""Our ComfyUI nodes for tileable materials, which matdex's workflows use. Lives in the
+repo; symlinked into `tools/ComfyUI/custom_nodes/assetgen_tiling`.
 
 `TorusRoll` makes a transformer image model (FLUX.2 klein) produce an image
 that tiles. Such a model has no convolutions to pad circularly, so instead the

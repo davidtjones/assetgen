@@ -7,7 +7,7 @@ version = "0.1.0"
 
 [tasks]
 # Scripts run as modules from the repo root (`python -m <generator>.scripts.<name>`), so
-# they import shared code as packages (`common.gltf_io`, `textures.scripts.tex_core`).
+# they import shared code as packages (`common.gltf_io`, `trees.scripts.tex_core`).
 # Outputs into the game go through `common/paths.py` (`GAME3D_DIR` overrides ../game3d).
 # --disable-dynamic-vram: ComfyUI 0.45's dynamic VRAM (comfy_aimdo) segfaults freeing a buffer after a CHORD run.
 comfyui = { cmd = "python main.py --listen 127.0.0.1 --disable-dynamic-vram", cwd = "tools/ComfyUI" }

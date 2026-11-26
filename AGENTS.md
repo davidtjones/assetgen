@@ -22,11 +22,11 @@ ComfyUI + SDXL for image work and dependency-free generators for geometry. It
 its own `../game3d/assets/` tree at runtime. Run pixi tasks from inside this repo.
 
 **How the code is wired.** Each generator is a directory (`foliage/`, `rocks/`,
-`trees/`, `textures/`, `creatures/`, `props/`, `concepts/`) with its scripts in `scripts/` and a
+`trees/`, `creatures/`, `props/`, `concepts/`) with its scripts in `scripts/` and a
 `README.md` for someone who wants to run it. The repo root is the import root:
 pixi tasks run scripts as modules (`python -m trees.scripts.generate_trees`), and
 code imports shared pieces as packages (`from common.gltf_io import ...`,
-`from textures.scripts import tex_core`). Do not add `sys.path` hacks; run a script
+`from trees.scripts import tex_core`). Do not add `sys.path` hacks; run a script
 by hand as `pixi run python -m <generator>.scripts.<name>` from the repo root.
 Blender scripts (`creatures/scripts/blender/`, `trees/scripts/decimate_blender.py`)
 are the exception: Blender runs them by file path and they import only Blender's
@@ -47,7 +47,7 @@ error if there is no `Cargo.toml` there, rather than writing assets nobody reads
 - `creatures/` - the creature pipeline: one spec in `specs/<name>.yaml` -> a rigged, animated, textured glTF in `../game3d/assets/creatures/`. FLUX.2 klein concept, TRELLIS.2 mesh with baked PBR maps (both through ComfyUI, `common/image_to_mesh.py`), then Blender scripts (`scripts/blender/`) that fit a quadruped skeleton from the mesh's shape, skin it, key in-place `idle` and gait loops (`walk`, `run`, `sprint`), and check the result against the spec (geometry, weights, deformation, foot contact and slip) with a contact sheet. `scripts/creature.py`'s docstring is the reference; outputs go to `creatures/out/<name>/` (gitignored). The game's side is `../game3d/src/creatures.rs`.
 - `props/` - the prop pipeline: one spec in `specs/<name>.yaml` -> a static, textured glTF in `../game3d/assets/props/` (today the mushroom boar forage). The same concept and mesh stages as `creatures/`, then a Blender script (`scripts/blender/frame_prop.py`) that scales it to the spec's height, stands it on the ground, checks it and renders a contact sheet. `scripts/prop.py`'s docstring is the reference; outputs go to `props/out/<name>/` (gitignored). The game's side is `../game3d/src/world/food.rs`. A spec with `kind: kit` is instead a set of building pieces made by code on a grid (`scripts/kit.py`: today `fort`, a dozen stone fort pieces), checked piece by piece and in a test arrangement, rendered by `scripts/blender/render_kit.py`, and exported to `../game3d/assets/kits/<name>/` with a `kit.json` manifest that `../game3d/src/world/kit.rs` reads.
 - `concepts/` - site concepts: photograph a site in the running game over its console socket (`site.shots`), then Qwen-Image-Edit-2511 draws a structure standing there, keeping the land, camera and light. What is drawn is a brief in `briefs/<name>.yaml` (today `fort`); outputs go to `concepts/out/<site>/` (gitignored). `scripts/paint.py` paints a blockout instead: the build's pictures repainted as the finished place, each part from its site plan's `finish`, from what the game says each picture shows (`site.seen`). `scripts/looks.py` dresses a painted block's building: an agent describes each part (wall, roof, frame...) in the material library's words, and the library gives back a material for each, tinted to the painting's colour, which the game dresses a structure in. `scripts/concept.py`'s, `scripts/paint.py`'s and `scripts/looks.py`'s docstrings and `concepts/README.md` are the reference.
-- `textures/` - our ComfyUI nodes for tileable materials (`comfy_nodes/`, symlinked into `tools/ComfyUI/custom_nodes/`), which matdex's workflows need, and `scripts/tex_core.py`, tileable-noise helpers the tree bake uses. Materials themselves come from matdex (`../matdex`), which draws with its own klein and CHORD workflows on this repo's ComfyUI; the older generators that lived here (`pixi run material`, `material-sm`) are in matdex's `archive/`. The CHORD weights (`tools/ComfyUI/models/checkpoints/chord_v1.safetensors`) are under a research-only licence.
+- `comfy_nodes/` - our ComfyUI nodes (`assetgen_tiling/`: `TorusRoll`, `ChordMaps`), symlinked into `tools/ComfyUI/custom_nodes/`. matdex's workflows need them, so keep them working; `comfy_nodes/README.md` covers them. Materials themselves come from matdex (`../matdex`), which draws with its own klein and CHORD workflows on this repo's ComfyUI; the older generators that lived in `textures/` (`pixi run material`, `material-sm`) are in matdex's `archive/`. The CHORD weights (`tools/ComfyUI/models/checkpoints/chord_v1.safetensors`) are under a research-only licence.
 - `tools/ComfyUI/` - local ComfyUI install (v0.45.3) for image and 3D generation: FLUX.2 klein, Qwen-Image-Edit-2511 (int8, with its Lightning 4-step LoRA), LongCat-Image-Edit Turbo (kept from the model comparison, unused), SDXL 1.0 base + ControlNet Union Promax, CHORD, native TRELLIS.2 (Comfy-Org's repackaged weights in `models/diffusion_models`, `vae`, `clip_vision`), and our custom `asset_test_utils` nodes. It needs torch 2.7 or newer, hence the cu130 torch in `pixi.toml`. Started with `--disable-dynamic-vram`: its dynamic VRAM allocator segfaulted freeing a buffer after a CHORD run. **gitignored.**
 - `tools/meshflow/` - MeshFlow (Meta's learned retopology model) with its own venv, installed but without weights: the Hugging Face repo is gated behind a noncommercial research licence that needs David's account. Nothing in this repo uses it since the gear pipeline was removed. **gitignored** (via `tools/.gitignore`).
 
@@ -63,8 +63,9 @@ pipeline. See `../AGENTS.md` for the current repo map.
 The cross-repo documentation protocol lives in `../AGENTS.md`. **Reference docs
 travel with their code** - this repo's:
 
-- `<generator>/README.md` - one per generator (`foliage/`, `rocks/`, `trees/`, `textures/`, `creatures/`, `props/`, `concepts/`): what it makes, how to run it, and which script does what. `foliage/README.md` and `rocks/README.md` also hold the YAML profile schemas.
+- `<generator>/README.md` - one per generator (`foliage/`, `rocks/`, `trees/`, `creatures/`, `props/`, `concepts/`): what it makes, how to run it, and which script does what. `foliage/README.md` and `rocks/README.md` also hold the YAML profile schemas.
 - `foliage/workflows/README.md` - billboard ComfyUI workflow reference (node graph, prompt guidance).
+- `comfy_nodes/README.md` - our ComfyUI nodes and how they are linked in.
 - Script docstrings - the CLI reference for each entry point (`creature.py`, `generate_trees.py`, ...).
 
 **This repo has no status doc.** The workspace is a research workspace with no
@@ -76,7 +77,7 @@ versions of this file pointed at both before they were removed. The per-generato
 **When you change X, update Y** (in addition to the workspace-wide rules in `../AGENTS.md`):
 
 - A generator script, its CLI, or a YAML schema -> that generator's `README.md` (and the script's docstring).
-- A ComfyUI workflow graph or custom node -> that workflow's `README.md`.
+- A ComfyUI workflow graph -> that workflow's `README.md`; a custom node -> `comfy_nodes/README.md` and the node's docstring.
 - Repo layout, commands, or dependencies -> this file (`AGENTS.md`).
 - Finished a chunk of work, ran an experiment, or made a non-obvious decision -> add a journal entry (the `journal` skill).
 

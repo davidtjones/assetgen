@@ -35,7 +35,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 from scipy import ndimage
 
-from textures.scripts import tex_core as tc
+from trees.scripts import tex_core as tc
 
 BARK_W, BARK_H = 512, 1024
 BARK_METRES = (1.0, 2.0)      # what one bark tile covers: round the trunk, up it

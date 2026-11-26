@@ -1,7 +1,7 @@
 """Tileable procedural texture building blocks (numpy + scipy).
 
 Everything here is periodic over the image, so every map built from these
-functions tiles without a seam. Shared by the bark, leaf and water bakers.
+functions tiles without a seam. Used by the bark and foliage drawing in `tree_textures.py`.
 
 Conventions: arrays are `(n, n)` float32, `v` (rows) first. Heights and masks
 are in 0..1 unless a function says otherwise.

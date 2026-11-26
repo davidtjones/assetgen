@@ -21,6 +21,8 @@ The scripts, in `scripts/`:
 - `tree_textures.py` - bark (the matdex material for the use `trees/<kind>/bark` at its
   tint, with a mossy overlay from `trees/<kind>/bark-mossy`; drawn when matdex has none) and
   foliage cards. Revise a bark in matdex, then bake again.
+- `tex_core.py` - tileable noise and map helpers (normal from height, cavity, ...) that
+  `tree_textures.py` draws with.
 - `generate_trees.py` - the bake: meshes, textures, impostor atlases and the
   `trees.txt` manifest. Its docstring documents the manifest format.
 
