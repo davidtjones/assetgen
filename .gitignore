@@ -226,6 +226,4 @@ __marimo__/
 # Generated outputs: material candidates and tree bake caches. Materials are
 # reproducible from their prompt and seed (`pixi run material`).
 /textures/out/
-/textures/library/data/
-/textures/library/service.log
 /trees/out/

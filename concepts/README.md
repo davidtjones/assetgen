@@ -125,8 +125,8 @@ pixi run paint <plan> --no-mask                              # keep the whole pa
 ## Materials from a painting
 
 `pixi run looks` dresses a building in a painted block from its painting: for each slot of the
-kit (wall, roof, footing, frame...) a material from the material library
-(`textures/README.md`), tinted to the painting's colour, so the painting decides how the
+kit (wall, roof, footing, frame...) a material from matdex, the material library
+(`../matdex/README.md`), tinted to the painting's colour, so the painting decides how the
 building looks and nobody draws a material by hand.
 
 ```sh

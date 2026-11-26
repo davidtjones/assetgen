@@ -1,9 +1,9 @@
 """A building's materials from its painting: what a painted block shows its walls, roof, footing
-and frames made of, as materials from the material library, each with the colour and tile size
+and frames made of, as materials from matdex, the material library, each with the colour and tile size
 the game dresses that building's slots in.
 
     pixi run looks <paint run dir> <block> [--view <view>] [--slots wall roof ...] [--painting 0]
-                   [--structure <name>] [--game]
+                   [--structure <name>] [--region <region>] [--game]
 
 The paint step (`pixi run paint`) decides how each block of a site plan looks. This step turns
 that look into materials, so the building put up in the block wears what its painting showed,
@@ -18,8 +18,8 @@ and no one designs a material by hand.
    is cropped from its own band of the box (`BANDS`): the roof from above it, the walls from its
    lower part, the frames from round the block's door when it is in sight.
 2. **The words.** An agent is shown the block and each slot's crop and asked one question: what
-   each slot's surface is made of, in the library's words (`textures/library/words.py`: a kind
-   and pattern from its vocabulary, the finish, the colour, a detail), and which slots are the
+   each slot's surface is made of, in the library's words (matdex's `words.py`: a kind
+   and pattern from its vocabulary, which it asks the library for, the finish, the colour, a detail), and which slots are the
    same material as another (a footing of the walls' stone). Its question and answer are kept
    in `describe/`.
 3. **The colour.** Each slot's colour is the painting's own: the median of the pixels in the
@@ -27,12 +27,13 @@ and no one designs a material by hand.
    the sky, the ground and anything in front. Round a door the painter changed the wall too, so
    the frame's colour is the median of the door's upper half (things in front of a door stand
    on the ground).
-4. **The material.** The library (`textures/library/`, through its API) gives back a material
-   for each slot's words: one it has whose words mean about the same, or a new one it draws
-   (about a minute). A slot the agent called the same as another gets that slot's material.
+4. **The material.** The library (matdex, through its API) gives back a material
+   for each slot's words: one it has whose words mean about the same, preferring one already
+   used in the site's region (the plan's `region`, or `--region`), or a new one it draws (about
+   a minute). A slot the agent called the same as another gets that slot's material.
    Every library material is colour-neutral; the building uses it tinted to the slot's colour,
    at the tile size the material's courses give it. Who uses it is recorded in the library as
-   `<site>/<block>/<slot>`.
+   `<site>/<block>/<slot>`, with the region.
 5. **Into the game.** With `--game`, each material is exported to
    `../game3d/assets/materials/<name>/`.
 
@@ -60,11 +61,14 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from common.agent import ask
+from common.paths import use_matdex
 from concepts.scripts.paint import ROOF, pictures_in
-from textures.library import words
-from textures.library.client import LibraryClient
-from textures.library.match import tint
-from textures.library.measure import LUMA, to_linear, to_srgb
+
+use_matdex()
+from matdex import words  # noqa: E402
+from matdex.client import MatdexClient  # noqa: E402
+from matdex.match import tint  # noqa: E402
+from matdex.measure import LUMA, to_linear, to_srgb  # noqa: E402
 
 # What each slot is, for the agent: which part of the building its crop shows.
 SLOTS = {
@@ -199,9 +203,10 @@ def block_of(plan: dict, block: str) -> dict:
     sys.exit(f"no block `{block}` in the plan")
 
 
-def describe(out: Path, slots: list[str], block: dict) -> tuple[dict[str, words.Description], dict[str, str]]:
-    """One question to an agent: each slot's material, in the library's words, and which slots
-    are the same material as another (`same_as`)."""
+def describe(out: Path, slots: list[str], block: dict,
+             vocabulary: words.Vocabulary) -> tuple[dict[str, words.Description], dict[str, str]]:
+    """One question to an agent: each slot's material, in the library's words (its kinds and
+    patterns are `vocabulary`), and which slots are the same material as another (`same_as`)."""
     parts = "\n".join(f"- `{s}.crop.png`: {SLOTS[s]}" for s in slots)
     question = (
         f"These pictures are crops of one building in a painting of a fort. `crop.png` shows the whole "
@@ -215,7 +220,7 @@ def describe(out: Path, slots: list[str], block: dict) -> tuple[dict[str, words.
         f"(the foot of the walls built of the same stone as the walls), name that part in `same_as`.")
 
     def slot_schema(slot: str) -> dict:
-        one = words.schema()
+        one = words.schema(vocabulary)
         one["properties"]["same_as"] = {"type": "string", "enum": [""] + [o for o in slots if o != slot],
                                         "description": "the part this one is the same material as, or empty"}
         one["required"].append("same_as")
@@ -225,8 +230,8 @@ def describe(out: Path, slots: list[str], block: dict) -> tuple[dict[str, words.
               "required": slots, "additionalProperties": False}
     files = [out / "crop.png"] + [out / f"{s}.crop.png" for s in slots]
     answer = ask(question, schema, out / "describe", files=files)
-    described = {s: words.from_choice(answer[s]["material"], finish=answer[s]["finish"], colour=answer[s]["colour"],
-                                      detail=answer[s]["detail"]) for s in slots}
+    described = {s: words.from_choice(answer[s]["material"], vocabulary, finish=answer[s]["finish"],
+                                      colour=answer[s]["colour"], detail=answer[s]["detail"]) for s in slots}
     # A slot the same as another is dressed in that slot's material, unless that one is itself
     # the same as something (no chains).
     same = {s: answer[s]["same_as"] for s in slots
@@ -239,7 +244,7 @@ def tinted(albedo: Image.Image, tint: list[float], size: int) -> Image.Image:
     return Image.fromarray((to_srgb(lin * np.asarray(tint)) * 255 + 0.5).astype(np.uint8))
 
 
-def sheet(lib: LibraryClient, out: Path, looks: dict) -> Path:
+def sheet(lib: MatdexClient, out: Path, looks: dict) -> Path:
     """Each slot's crop beside its material's albedo, tinted, and its lit preview."""
     cell, pad = 300, 12
     rows = []
@@ -278,6 +283,7 @@ def main() -> None:
     ap.add_argument("--slots", nargs="+", choices=sorted(SLOTS), default=DEFAULT_SLOTS)
     ap.add_argument("--painting", type=int, default=0, help="which seed's painting to crop (default 0)")
     ap.add_argument("--structure", help="the structure `looks.con` dresses (default <site>-<block>)")
+    ap.add_argument("--region", help="the region the site is in, a biome or place name (default: the plan's `region`)")
     ap.add_argument("--game", action="store_true", help="export each material into ../game3d/assets/materials/")
     a = ap.parse_args()
 
@@ -306,8 +312,10 @@ def main() -> None:
         scaled(picture.crop(part)).save(out / f"{slot}.crop.png")
         colours[slot] = door_colour(picture, door, part) if around_door else painted_colour(picture, game, part)
 
-    described, same = describe(out, a.slots, block)
-    lib = LibraryClient().ensure()
+    lib = MatdexClient().ensure()
+    described, same = describe(out, a.slots, block, lib.vocabulary())
+    region = a.region or plan.get("region")
+    print(f"[looks] region: {region or 'none given'}", flush=True)
     looks = {}
     for slot in sorted(a.slots, key=lambda s: s in same):
         desc = described[slot]
@@ -320,13 +328,13 @@ def main() -> None:
             mean = lib.material(of["material"])["current"]["albedo_mean"]
             hit = {"name": of["material"], "version": of["version"], "tint": tint(mean, colour),
                    "tile_metres": of["tile_metres"], "made": False, "similarity": None}
-            lib.use(user, hit["name"], hit["tint"], hit["tile_metres"])
+            lib.use(user, hit["name"], hit["tint"], hit["tile_metres"], region)
             how = f"the same as the {same[slot]}"
         else:
             source = {"by": "concepts/scripts/looks.py", "run": str(run_dir), "block": a.block, "view": view,
                       "painting": painted[0]["file"], "slot": slot}
-            hit = lib.resolve(desc.as_dict(), colour, user=user, source=source)
-            how = "drew it" if hit["made"] else f"matched at {hit['similarity']}"
+            hit = lib.resolve(desc.as_dict(), colour, user=user, source=source, region=region)
+            how = "drew it" if hit["made"] else f"matched at {hit['score']} (words {hit['similarity']}, region {hit['region_fit']})"
         looks[slot] = {"material": hit["name"], "version": hit["version"], "tint": hit["tint"],
                        "tile_metres": hit["tile_metres"], "made": hit["made"], "similarity": hit["similarity"],
                        "same_as": same.get(slot), "colour": colour, "description": desc.as_dict()}
