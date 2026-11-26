@@ -24,8 +24,8 @@ Normal maps are tangent space, OpenGL convention (green = up the image), the
 same as the ground textures.
 
 Foliage, and bark with no use in matdex, are drawn here with numpy noise and
-PIL. matdex is read from what its service last published (`matdex.client.Published`, no
-service needed), so a material revised there reaches the trees at the next bake.
+PIL. matdex is read from the `current.json` its service last published (`common.matdex.Published`,
+no service needed), so a material revised there reaches the trees at the next bake.
 """
 
 import math
@@ -169,9 +169,7 @@ def _library():
     """matdex as last published, or None (with a note) when it is not there."""
     global _LIBRARY
     if _LIBRARY is None:
-        from common.paths import use_matdex
-        use_matdex()
-        from matdex.client import MatdexError, Published
+        from common.matdex import MatdexError, Published
         try:
             _LIBRARY = Published()
         except MatdexError as e:

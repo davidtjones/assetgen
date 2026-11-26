@@ -18,16 +18,16 @@ and no one designs a material by hand.
    is cropped from its own band of the box (`BANDS`): the roof from above it, the walls from its
    lower part, the frames from round the block's door when it is in sight.
 2. **The words.** An agent is shown the block and each slot's crop and asked one question: what
-   each slot's surface is made of, in the library's words (matdex's `words.py`: a kind
-   and pattern from its vocabulary, which it asks the library for, the finish, the colour, a detail), and which slots are the
-   same material as another (a footing of the walls' stone). Its question and answer are kept
+   each slot's surface is made of, in matdex's words (the answer schema matdex serves at
+   `GET /vocabulary/schema`: a kind and pattern from its vocabulary, the finish, the colour, a
+   detail), and which slots are the same material as another (a footing of the walls' stone). Its question and answer are kept
    in `describe/`.
 3. **The colour.** Each slot's colour is the painting's own: the median of the pixels in the
    slot's band the painter changed from the game's picture (`painted_colour`), which leaves out
    the sky, the ground and anything in front. Round a door the painter changed the wall too, so
    the frame's colour is the median of the door's upper half (things in front of a door stand
    on the ground).
-4. **The material.** The library (matdex, through its API) gives back a material
+4. **The material.** matdex, through its HTTP API (`common/matdex.py`), gives back a material
    for each slot's words: one it has whose words mean about the same, preferring one already
    used in the site's region (the plan's `region`, or `--region`), or a new one it draws (about
    a minute). A slot the agent called the same as another gets that slot's material.
@@ -46,11 +46,15 @@ crop beside its material, tinted.
 The slots are the kit's (`assetgen/props/scripts/kit.py`): `footing`, `wall`, `upper` (an upper
 storey's walls and the gables), `frame`, `floor` and `roof`. By default it describes `wall`,
 `roof`, `footing` and `frame`.
+
+matdex's service must be running (`uv run matdex serve` in the matdex repo); this step stops
+with that hint when it is not.
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import sys
 import tempfile
@@ -61,14 +65,21 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from common.agent import ask
-from common.paths import use_matdex
+from common.matdex import Matdex, MatdexError
 from concepts.scripts.paint import ROOF, pictures_in
 
-use_matdex()
-from matdex import words  # noqa: E402
-from matdex.client import MatdexClient  # noqa: E402
-from matdex.match import tint  # noqa: E402
-from matdex.measure import LUMA, to_linear, to_srgb  # noqa: E402
+# Relative luminance of linear RGB (Rec. 709).
+LUMA = np.array([0.2126, 0.7152, 0.0722])
+
+
+def to_linear(c: np.ndarray) -> np.ndarray:
+    return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+
+
+def to_srgb(c: np.ndarray) -> np.ndarray:
+    c = np.clip(c, 0.0, 1.0)
+    return np.where(c <= 0.0031308, c * 12.92, 1.055 * c ** (1 / 2.4) - 0.055)
+
 
 # What each slot is, for the agent: which part of the building its crop shows.
 SLOTS = {
@@ -203,10 +214,11 @@ def block_of(plan: dict, block: str) -> dict:
     sys.exit(f"no block `{block}` in the plan")
 
 
-def describe(out: Path, slots: list[str], block: dict,
-             vocabulary: words.Vocabulary) -> tuple[dict[str, words.Description], dict[str, str]]:
-    """One question to an agent: each slot's material, in the library's words (its kinds and
-    patterns are `vocabulary`), and which slots are the same material as another (`same_as`)."""
+def describe(out: Path, slots: list[str], block: dict, answer_schema: dict) -> tuple[dict[str, dict], dict[str, str]]:
+    """One question to an agent: each slot's material, in matdex's words (`answer_schema`, from
+    `GET /vocabulary/schema`), and which slots are the same material as another (`same_as`).
+    Returns each slot's description as matdex takes it (`kind`, `pattern`, `finish`, `colour`,
+    `detail`), and which slot each is the same as."""
     parts = "\n".join(f"- `{s}.crop.png`: {SLOTS[s]}" for s in slots)
     question = (
         f"These pictures are crops of one building in a painting of a fort. `crop.png` shows the whole "
@@ -220,7 +232,7 @@ def describe(out: Path, slots: list[str], block: dict,
         f"(the foot of the walls built of the same stone as the walls), name that part in `same_as`.")
 
     def slot_schema(slot: str) -> dict:
-        one = words.schema(vocabulary)
+        one = copy.deepcopy(answer_schema)
         one["properties"]["same_as"] = {"type": "string", "enum": [""] + [o for o in slots if o != slot],
                                         "description": "the part this one is the same material as, or empty"}
         one["required"].append("same_as")
@@ -230,8 +242,11 @@ def describe(out: Path, slots: list[str], block: dict,
               "required": slots, "additionalProperties": False}
     files = [out / "crop.png"] + [out / f"{s}.crop.png" for s in slots]
     answer = ask(question, schema, out / "describe", files=files)
-    described = {s: words.from_choice(answer[s]["material"], vocabulary, finish=answer[s]["finish"],
-                                      colour=answer[s]["colour"], detail=answer[s]["detail"]) for s in slots}
+    described = {}
+    for s in slots:
+        kind, _, pattern = answer[s]["material"].partition(":")
+        described[s] = {"kind": kind.strip(), "pattern": pattern.strip(),
+                        **{k: " ".join(answer[s][k].split()) for k in ("finish", "colour", "detail")}}
     # A slot the same as another is dressed in that slot's material, unless that one is itself
     # the same as something (no chains).
     same = {s: answer[s]["same_as"] for s in slots
@@ -244,7 +259,7 @@ def tinted(albedo: Image.Image, tint: list[float], size: int) -> Image.Image:
     return Image.fromarray((to_srgb(lin * np.asarray(tint)) * 255 + 0.5).astype(np.uint8))
 
 
-def sheet(lib: MatdexClient, out: Path, looks: dict) -> Path:
+def sheet(lib: Matdex, out: Path, looks: dict) -> Path:
     """Each slot's crop beside its material's albedo, tinted, and its lit preview."""
     cell, pad = 300, 12
     rows = []
@@ -285,7 +300,14 @@ def main() -> None:
     ap.add_argument("--structure", help="the structure `looks.con` dresses (default <site>-<block>)")
     ap.add_argument("--region", help="the region the site is in, a biome or place name (default: the plan's `region`)")
     a = ap.parse_args()
+    try:
+        run_looks(a)
+    except MatdexError as e:
+        sys.exit(str(e))
 
+
+def run_looks(a: argparse.Namespace) -> None:
+    lib = Matdex().check()
     run_dir = Path(a.run).resolve()
     run = json.loads((run_dir / "paint.json").read_text())
     plan = tomllib.loads(Path(run["plan"]).read_text())
@@ -311,8 +333,7 @@ def main() -> None:
         scaled(picture.crop(part)).save(out / f"{slot}.crop.png")
         colours[slot] = door_colour(picture, door, part) if around_door else painted_colour(picture, game, part)
 
-    lib = MatdexClient().ensure()
-    described, same = describe(out, a.slots, block, lib.vocabulary())
+    described, same = describe(out, a.slots, block, lib.description_schema())
     region = a.region or plan.get("region")
     print(f"[looks] region: {region or 'none given'}", flush=True)
     looks = {}
@@ -320,23 +341,22 @@ def main() -> None:
         desc = described[slot]
         colour = None if colours[slot] is None else [round(float(c), 5) for c in colours[slot]]
         user = f"{run['site']}/{a.block}/{slot}"
-        print(f"  {slot}: {desc.kind}, {desc.pattern}: {desc.finish} ({desc.colour})", flush=True)
+        print(f"  {slot}: {desc['kind']}, {desc['pattern']}: {desc['finish']} ({desc['colour']})", flush=True)
         if slot in same:
             # The same material as another slot, at this slot's own colour.
             of = looks[same[slot]]
-            mean = lib.material(of["material"])["current"]["albedo_mean"]
-            hit = {"name": of["material"], "version": of["version"], "tint": tint(mean, colour),
-                   "tile_metres": of["tile_metres"], "made": False, "similarity": None}
-            lib.use(user, hit["name"], hit["tint"], hit["tile_metres"], region)
+            used = lib.use(user, of["material"], colour, of["tile_metres"], region)
+            hit = {"name": of["material"], "version": of["version"], "tint": used["tint"],
+                   "tile_metres": used["tile_metres"], "made": False, "similarity": None}
             how = f"the same as the {same[slot]}"
         else:
             source = {"by": "concepts/scripts/looks.py", "run": str(run_dir), "block": a.block, "view": view,
                       "painting": painted[0]["file"], "slot": slot}
-            hit = lib.resolve(desc.as_dict(), colour, user=user, source=source, region=region)
+            hit = lib.resolve(desc, colour, user=user, source=source, region=region)
             how = "drew it" if hit["made"] else f"matched at {hit['score']} (words {hit['similarity']}, region {hit['region_fit']})"
         looks[slot] = {"material": hit["name"], "version": hit["version"], "tint": hit["tint"],
                        "tile_metres": hit["tile_metres"], "made": hit["made"], "similarity": hit["similarity"],
-                       "same_as": same.get(slot), "colour": colour, "description": desc.as_dict()}
+                       "same_as": same.get(slot), "colour": colour, "description": desc}
         print(f"    -> {hit['name']} v{hit['version']} ({how}), tint {hit['tint']}, a {hit['tile_metres']} m tile", flush=True)
     looks = {s: looks[s] for s in a.slots}
     (out / "looks.json").write_text(json.dumps(looks, indent=2) + "\n")

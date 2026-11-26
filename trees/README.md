@@ -24,6 +24,6 @@ The scripts, in `scripts/`:
 - `generate_trees.py` - the bake: meshes, textures, impostor atlases and the
   `trees.txt` manifest. Its docstring documents the manifest format.
 
-Needs `blender` on `PATH` for the decimation step. Bark is read from matdex beside this repo
-(`../matdex`, or `MATDEX_DIR`), from what its service last published (`data/current.json`); a
-bark kind with no use there, or no matdex at all, falls back to drawn bark.
+Needs `blender` on `PATH` for the decimation step. Bark is read from what matdex's service last published
+(`../matdex/data/current.json`, or `MATDEX_DATA`; `common/matdex.py`); a bark kind with no use
+there, or no matdex at all, falls back to drawn bark.
